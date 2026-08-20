@@ -1,0 +1,7 @@
+node_modules/
+.env
+data/uploads/
+public/logo.js
+*.log
+.DS_Store
+thumbs.db

@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: rhosam-hcm
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm run migrate && npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: NODE_ENV
+        value: production
+      - key: PUBLIC_BASE_URL
+        generateValue: true
+      - key: RESEND_API_KEY
+        sync: false
+      - key: ADMIN_EMAIL
+        value: rhosam.rhosam@gmail.com
+      - key: ADMIN_PASSWORD
+        value: Welcome@123
+      - key: SESSION_HOURS
+        value: 24
