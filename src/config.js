@@ -142,7 +142,7 @@ const SHEETS = {
 /** Canonical column order per table */
 const SCHEMA = {
   Users: ['UserID', 'EmployeeID', 'Email', 'PasswordHash', 'Salt', 'Role', 'Status', 'MustChangePassword', 'LastLogin', 'CreatedAt', 'UpdatedAt'],
-  Employees: ['EmployeeID', 'Title', 'FirstName', 'MiddleName', 'LastName', 'DOB', 'Gender', 'MaritalStatus', 'Email', 'Phone', 'NationalID', 'Country', 'StateOfOrigin', 'LGA', 'Address', 'AddressState', 'AddressLGA', 'Department', 'Position', 'Location', 'JobLevel', 'Grade', 'JobTitle', 'ManagerID', 'Role', 'EmploymentStatus', 'HireDate', 'TerminationDate', 'PhotoFileId', 'PhotoUrl', 'CreatedAt', 'UpdatedAt'],
+  Employees: ['EmployeeID', 'Title', 'FirstName', 'MiddleName', 'LastName', 'DOB', 'Gender', 'MaritalStatus', 'Religion', 'Email', 'Phone', 'NationalID', 'Country', 'StateOfOrigin', 'LGA', 'Address', 'AddressState', 'AddressLGA', 'EmergencyContactName', 'EmergencyContactPhone', 'NextOfKin', 'NextOfKinPhone', 'NextOfKinRelationship', 'BankName', 'BankAccountNumber', 'BankAccountName', 'Department', 'Position', 'Location', 'JobLevel', 'Grade', 'JobTitle', 'ManagerID', 'Role', 'EmploymentStatus', 'HireDate', 'TerminationDate', 'PhotoFileId', 'PhotoUrl', 'CreatedAt', 'UpdatedAt'],
   Config: ['Key', 'Value', 'Category', 'Active'],
   State_LGA_Config: ['State', 'LGA', 'Active'],
   Departments: ['Department', 'Active'],

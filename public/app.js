@@ -575,6 +575,17 @@ async function showCreateEmployee() {
       </div>
       
       <div class="form-group">
+        <label>Religion</label>
+        <select name="Religion">
+          <option value="">Select</option>
+          <option value="Christianity">Christianity</option>
+          <option value="Islam">Islam</option>
+          <option value="Traditional">Traditional</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+      
+      <div class="form-group">
         <label>National ID <span style="color: var(--danger);">*</span></label>
         <input type="text" name="NationalID" required pattern="[0-9]{1,11}" maxlength="11" title="National ID must be 1-11 digits only" oninput="validateNationalIDInput(this)">
       </div>
@@ -612,6 +623,87 @@ async function showCreateEmployee() {
         <select name="LGA" id="lgaOfOrigin">
           <option value="">Select LGA</option>
         </select>
+      </div>
+      
+      <div class="section-title">Emergency Contact</div>
+      
+      <div class="form-group">
+        <label>Contact Name</label>
+        <input type="text" name="EmergencyContactName" placeholder="Full name">
+      </div>
+      
+      <div class="form-group">
+        <label>Contact Phone</label>
+        <input type="tel" name="EmergencyContactPhone" pattern="[0-9]{7,15}" maxlength="15" title="Phone must be 7-15 digits only" oninput="validatePhoneInput(this)">
+      </div>
+      
+      <div class="section-title">Next of Kin</div>
+      
+      <div class="form-group">
+        <label>Next of Kin Name</label>
+        <input type="text" name="NextOfKin" placeholder="Full name">
+      </div>
+      
+      <div class="form-group">
+        <label>Next of Kin Phone</label>
+        <input type="tel" name="NextOfKinPhone" pattern="[0-9]{7,15}" maxlength="15" title="Phone must be 7-15 digits only" oninput="validatePhoneInput(this)">
+      </div>
+      
+      <div class="form-group">
+        <label>Relationship</label>
+        <select name="NextOfKinRelationship">
+          <option value="">Select</option>
+          <option value="Spouse">Spouse</option>
+          <option value="Parent">Parent</option>
+          <option value="Sibling">Sibling</option>
+          <option value="Child">Child</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+      
+      <div class="section-title">Bank Details</div>
+      
+      <div class="form-group">
+        <label>Bank Name</label>
+        <select name="BankName">
+          <option value="">Select Bank</option>
+          <option value="Access Bank">Access Bank</option>
+          <option value="Citibank Nigeria">Citibank Nigeria</option>
+          <option value="Ecobank Nigeria">Ecobank Nigeria</option>
+          <option value="Fidelity Bank">Fidelity Bank</option>
+          <option value="First Bank of Nigeria">First Bank of Nigeria</option>
+          <option value="First City Monument Bank">First City Monument Bank</option>
+          <option value="Globus Bank">Globus Bank</option>
+          <option value="Guaranty Trust Bank">Guaranty Trust Bank</option>
+          <option value="Heritage Bank">Heritage Bank</option>
+          <option value="Keystone Bank">Keystone Bank</option>
+          <option value="Kuda Bank">Kuda Bank</option>
+          <option value="Opay">Opay</option>
+          <option value="PALMPAY">PALMPAY</option>
+          <option value="Polaris Bank">Polaris Bank</option>
+          <option value="Providus Bank">Providus Bank</option>
+          <option value="Stanbic IBTC Bank">Stanbic IBTC Bank</option>
+          <option value="Standard Chartered Bank">Standard Chartered Bank</option>
+          <option value="Sterling Bank">Sterling Bank</option>
+          <option value="SunTrust Bank">SunTrust Bank</option>
+          <option value="Titan Trust Bank">Titan Trust Bank</option>
+          <option value="Union Bank">Union Bank</option>
+          <option value="United Bank for Africa">United Bank for Africa</option>
+          <option value="Unity Bank">Unity Bank</option>
+          <option value="VFD Microfinance Bank">VFD Microfinance Bank</option>
+          <option value="Wema Bank">Wema Bank</option>
+          <option value="Zenith Bank">Zenith Bank</option>
+        </select>
+      </div>
+      
+      <div class="form-group">
+        <label>Account Number</label>
+        <input type="text" name="BankAccountNumber" pattern="[0-9]{10}" maxlength="10" title="Account number must be 10 digits" oninput="validateNationalIDInput(this)">
+      </div>
+      
+      <div class="form-group">
+        <label>Account Name</label>
+        <input type="text" name="BankAccountName" placeholder="Name on account">
       </div>
       
       <div class="section-title">Employment Details</div>
@@ -753,14 +845,40 @@ async function viewEmployee(id) {
       <div><strong>Phone:</strong> ${emp.Phone || '-'}</div>
       <div><strong>Employee ID:</strong> ${emp.EmployeeID}</div>
       <div><strong>National ID:</strong> ${emp.NationalID || '-'}</div>
+      <div><strong>Gender:</strong> ${emp.Gender || '-'}</div>
+      <div><strong>Date of Birth:</strong> ${emp.DOB || '-'}</div>
+      <div><strong>Marital Status:</strong> ${emp.MaritalStatus || '-'}</div>
+      <div><strong>Religion:</strong> ${emp.Religion || '-'}</div>
+      <div><strong>Country:</strong> ${emp.Country || '-'}</div>
       <div><strong>Hire Date:</strong> ${emp.HireDate || '-'}</div>
       <div><strong>Job Level:</strong> ${emp.JobLevel || '-'}</div>
+      <div><strong>Job Title:</strong> ${emp.JobTitle || '-'}</div>
       <div><strong>Location:</strong> ${emp.Location || '-'}</div>
       <div><strong>Grade:</strong> ${emp.Grade || '-'}</div>
       <div><strong>Manager:</strong> ${emp.ManagerID || 'None'}</div>
       <div><strong>Address:</strong> ${emp.Address || '-'}</div>
       <div><strong>State of Origin:</strong> ${emp.StateOfOrigin || '-'}</div>
       <div><strong>LGA:</strong> ${emp.LGA || '-'}</div>
+    </div>
+    
+    <div class="section-title" style="padding: 0 24px;">Emergency Contact</div>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 0 24px 24px;">
+      <div><strong>Contact Name:</strong> ${emp.EmergencyContactName || '-'}</div>
+      <div><strong>Contact Phone:</strong> ${emp.EmergencyContactPhone || '-'}</div>
+    </div>
+    
+    <div class="section-title" style="padding: 0 24px;">Next of Kin</div>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 0 24px 24px;">
+      <div><strong>Name:</strong> ${emp.NextOfKin || '-'}</div>
+      <div><strong>Phone:</strong> ${emp.NextOfKinPhone || '-'}</div>
+      <div><strong>Relationship:</strong> ${emp.NextOfKinRelationship || '-'}</div>
+    </div>
+    
+    <div class="section-title" style="padding: 0 24px;">Bank Details</div>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 0 24px 24px;">
+      <div><strong>Bank Name:</strong> ${emp.BankName || '-'}</div>
+      <div><strong>Account Number:</strong> ${emp.BankAccountNumber || '-'}</div>
+      <div><strong>Account Name:</strong> ${emp.BankAccountName || '-'}</div>
     </div>
   `);
 }
@@ -863,6 +981,50 @@ async function editEmployee(id) {
         <select name="EmploymentStatus">
           ${['Active','Probation','On Leave','Suspended','Terminated'].map(s => `<option value="${s}" ${(emp.EmploymentStatus || emp.Status) === s ? 'selected' : ''}>${s}</option>`).join('')}
         </select>
+      </div>
+      
+      <div class="section-title">Emergency Contact</div>
+      <div class="form-group">
+        <label>Contact Name</label>
+        <input type="text" name="EmergencyContactName" value="${emp.EmergencyContactName || ''}" placeholder="Full name">
+      </div>
+      <div class="form-group">
+        <label>Contact Phone</label>
+        <input type="tel" name="EmergencyContactPhone" value="${emp.EmergencyContactPhone || ''}" pattern="[0-9]{7,15}" maxlength="15" title="Phone must be 7-15 digits only" oninput="validatePhoneInput(this)">
+      </div>
+      
+      <div class="section-title">Next of Kin</div>
+      <div class="form-group">
+        <label>Next of Kin Name</label>
+        <input type="text" name="NextOfKin" value="${emp.NextOfKin || ''}" placeholder="Full name">
+      </div>
+      <div class="form-group">
+        <label>Next of Kin Phone</label>
+        <input type="tel" name="NextOfKinPhone" value="${emp.NextOfKinPhone || ''}" pattern="[0-9]{7,15}" maxlength="15" title="Phone must be 7-15 digits only" oninput="validatePhoneInput(this)">
+      </div>
+      <div class="form-group">
+        <label>Relationship</label>
+        <select name="NextOfKinRelationship">
+          <option value="">Select</option>
+          ${['Spouse','Parent','Sibling','Child','Other'].map(r => `<option value="${r}" ${r === emp.NextOfKinRelationship ? 'selected' : ''}>${r}</option>`).join('')}
+        </select>
+      </div>
+      
+      <div class="section-title">Bank Details</div>
+      <div class="form-group">
+        <label>Bank Name</label>
+        <select name="BankName">
+          <option value="">Select Bank</option>
+          ${['Access Bank','Citibank Nigeria','Ecobank Nigeria','Fidelity Bank','First Bank of Nigeria','First City Monument Bank','Globus Bank','Guaranty Trust Bank','Heritage Bank','Keystone Bank','Kuda Bank','Opay','PALMPAY','Polaris Bank','Providus Bank','Stanbic IBTC Bank','Standard Chartered Bank','Sterling Bank','SunTrust Bank','Titan Trust Bank','Union Bank','United Bank for Africa','Unity Bank','VFD Microfinance Bank','Wema Bank','Zenith Bank'].map(b => `<option value="${b}" ${b === emp.BankName ? 'selected' : ''}>${b}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Account Number</label>
+        <input type="text" name="BankAccountNumber" value="${emp.BankAccountNumber || ''}" pattern="[0-9]{10}" maxlength="10" title="Account number must be 10 digits" oninput="validateNationalIDInput(this)">
+      </div>
+      <div class="form-group">
+        <label>Account Name</label>
+        <input type="text" name="BankAccountName" value="${emp.BankAccountName || ''}" placeholder="Name on account">
       </div>
       
       <div style="grid-column: 1 / -1; display: flex; gap: 12px; justify-content: flex-end; margin-top: 16px;">
