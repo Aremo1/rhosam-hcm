@@ -1956,6 +1956,262 @@ async function getAdvancedAnalytics(token) {
 }
 
 /* ================================================================
+   ANNOUNCEMENTS & BROADCASTING
+   ================================================================ */
+async function createAnnouncement(token, p) {
+  await requireRole(token, APP.ADMIN_ROLES.concat(['HRBP']));
+  const id = uuid();
+  await appendRowAsync(SHEETS.ANNOUNCEMENTS, [
+    id, p.Title || '', p.Content || '', p.Category || 'General', p.Priority || 'Normal',
+    p.TargetAudience || 'All', me?.employeeId || '', p.PublishDate || new Date().toISOString(),
+    p.ExpiryDate || '', 'Published', new Date().toISOString(), new Date().toISOString()
+  ]);
+  // Notify all employees
+  if (p.TargetAudience === 'All') {
+    const employees = (await readRowsAsync(SHEETS.EMP)).filter(e => String(e.EmploymentStatus) === 'Active');
+    for (const e of employees.slice(0, 100)) {
+      await notify(e.EmployeeID, 'SYSTEM', 'Announcement', p.Title || 'New Announcement',
+        (p.Content || '').substring(0, 200), { category: 'General', refType: 'Announcement', refId: id });
+    }
+  }
+  return { ok: true, announcementId: id };
+}
+
+async function listAnnouncements(token) {
+  await requireLogin(token);
+  return { ok: true, announcements: await readRowsAsync(SHEETS.ANNOUNCEMENTS) };
+}
+
+async function markAnnouncementRead(token, announcementId) {
+  const me = await requireLogin(token);
+  const existing = (await readRowsAsync(SHEETS.ANNOUNCEMENT_READS)).find(r => String(r.AnnouncementID) === String(announcementId) && String(r.EmployeeID) === String(me.employeeId));
+  if (!existing) {
+    await appendRowAsync(SHEETS.ANNOUNCEMENT_READS, [uuid(), announcementId, me.employeeId, new Date().toISOString()]);
+  }
+  return { ok: true };
+}
+
+/* ================================================================
+   CONTRACT MANAGEMENT
+   ================================================================ */
+async function createContract(token, p) {
+  await requireRole(token, APP.ADMIN_ROLES.concat(['HRBP']));
+  const id = uuid();
+  await appendRowAsync(SHEETS.CONTRACTS, [
+    id, p.EmployeeID || '', p.ContractType || 'Full-time', p.StartDate || '', p.EndDate || '',
+    p.ProbationEndDate || '', p.RenewalDate || '', 'Active', p.DocumentUrl || '',
+    p.Notes || '', new Date().toISOString(), new Date().toISOString()
+  ]);
+  return { ok: true, contractId: id };
+}
+
+async function listContracts(token, employeeId) {
+  await requireLogin(token);
+  const rows = await readRowsAsync(SHEETS.CONTRACTS);
+  if (employeeId) return rows.filter(r => String(r.EmployeeID) === String(employeeId));
+  return rows;
+}
+
+async function updateContract(token, contractId, patch) {
+  await requireRole(token, APP.ADMIN_ROLES.concat(['HRBP']));
+  patch.UpdatedAt = new Date().toISOString();
+  await updateByIdAsync(SHEETS.CONTRACTS, 'ContractID', contractId, patch);
+  return { ok: true };
+}
+
+async function getExpiringContracts(token) {
+  await requireRole(token, APP.ADMIN_ROLES.concat(['HRBP']));
+  const rows = await readRowsAsync(SHEETS.CONTRACTS);
+  const now = new Date();
+  const thirtyDays = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+  return rows.filter(r => {
+    if (!r.EndDate || r.Status !== 'Active') return false;
+    const end = new Date(r.EndDate);
+    return end >= now && end <= thirtyDays;
+  });
+}
+
+/* ================================================================
+   GRIEVANCE MANAGEMENT
+   ================================================================ */
+async function createGrievance(token, p) {
+  const me = await requireLogin(token);
+  const id = uuid();
+  await appendRowAsync(SHEETS.GRIEVANCES, [
+    id, me.employeeId, p.Category || 'General', p.Title || '', p.Description || '',
+    p.Priority || 'Medium', 'Open', p.AssignedTo || '', '', '',
+    new Date().toISOString(), new Date().toISOString()
+  ]);
+  if (p.AssignedTo) {
+    await notify(p.AssignedTo, me.employeeId, 'Grievance', 'New grievance assigned',
+      `New grievance: ${p.Title || ''}`, { category: 'General', refType: 'Grievance', refId: id });
+  }
+  return { ok: true, grievanceId: id };
+}
+
+async function listGrievances(token) {
+  const me = await requireLogin(token);
+  const rows = await readRowsAsync(SHEETS.GRIEVANCES);
+  if (APP.ADMIN_ROLES.includes(me.role)) return rows;
+  if (APP.MANAGER_ROLES.includes(me.role)) {
+    return rows.filter(r => String(r.EmployeeID) === String(me.employeeId) || String(r.AssignedTo) === String(me.employeeId));
+  }
+  return rows.filter(r => String(r.EmployeeID) === String(me.employeeId));
+}
+
+async function updateGrievance(token, grievanceId, patch) {
+  const me = await requireLogin(token);
+  if (!APP.ADMIN_ROLES.includes(me.role) && !APP.MANAGER_ROLES.includes(me.role)) throw new Error('Access denied');
+  patch.UpdatedAt = new Date().toISOString();
+  await updateByIdAsync(SHEETS.GRIEVANCES, 'GrievanceID', grievanceId, patch);
+  if (patch.Status === 'Resolved') {
+    const g = await findByIdAsync(SHEETS.GRIEVANCES, 'GrievanceID', grievanceId);
+    if (g) await notify(g.EmployeeID, me.employeeId, 'Grievance', 'Grievance resolved', patch.Resolution || '', { category: 'General' });
+  }
+  return { ok: true };
+}
+
+async function addGrievanceComment(token, grievanceId, comment) {
+  const me = await requireLogin(token);
+  await appendRowAsync(SHEETS.GRIEVANCE_COMMENTS, [
+    uuid(), grievanceId, me.employeeId, comment || '', new Date().toISOString()
+  ]);
+  return { ok: true };
+}
+
+async function getGrievanceComments(token, grievanceId) {
+  await requireLogin(token);
+  const rows = (await readRowsAsync(SHEETS.GRIEVANCE_COMMENTS)).filter(r => String(r.GrievanceID) === String(grievanceId));
+  const emp = await readRowsAsync(SHEETS.EMP);
+  return rows.map(r => {
+    const e = emp.find(x => String(x.EmployeeID) === String(r.EmployeeID)) || {};
+    return { ...r, Name: [e.FirstName, e.LastName].join(' ') };
+  });
+}
+
+/* ================================================================
+   EMPLOYEE RECOGNITION
+   ================================================================ */
+async function nominateRecognition(token, p) {
+  const me = await requireLogin(token);
+  const id = uuid();
+  await appendRowAsync(SHEETS.RECOGNITIONS, [
+    id, me.employeeId, p.NomineeID || '', p.Category || 'Kudos', p.Title || '',
+    p.Description || '', p.Points || '10', 'Pending', '', '', new Date().toISOString()
+  ]);
+  return { ok: true, recognitionId: id };
+}
+
+async function listRecognitions(token) {
+  await requireLogin(token);
+  return { ok: true, recognitions: await readRowsAsync(SHEETS.RECOGNITIONS) };
+}
+
+async function approveRecognition(token, recognitionId) {
+  await requireRole(token, APP.ADMIN_ROLES.concat(['HRBP']));
+  const me = await requireLogin(token);
+  await updateByIdAsync(SHEETS.RECOGNITIONS, 'RecognitionID', recognitionId, {
+    Status: 'Approved', ApprovedBy: me.employeeId, ApprovedAt: new Date().toISOString()
+  });
+  const rec = await findByIdAsync(SHEETS.RECOGNITIONS, 'RecognitionID', recognitionId);
+  if (rec) {
+    await notify(rec.NomineeID, me.employeeId, 'Recognition', 'You\'ve been recognized!',
+      `You received a ${rec.Category || 'Kudos'}: ${rec.Title || ''}`, { category: 'General' });
+  }
+  return { ok: true };
+}
+
+async function getRecognitionLeaderboard(token) {
+  await requireLogin(token);
+  const recs = (await readRowsAsync(SHEETS.RECOGNITIONS)).filter(r => r.Status === 'Approved');
+  const emp = await readRowsAsync(SHEETS.EMP);
+  const scores = {};
+  recs.forEach(r => {
+    const nid = r.NomineeID;
+    scores[nid] = (scores[nid] || 0) + Number(r.Points || 10);
+  });
+  return Object.entries(scores).map(([id, pts]) => {
+    const e = emp.find(x => String(x.EmployeeID) === String(id)) || {};
+    return { employeeId: id, name: [e.FirstName, e.LastName].join(' '), points: pts };
+  }).sort((a, b) => b.points - a.points);
+}
+
+/* ================================================================
+   SHIFT & SCHEDULING
+   ================================================================ */
+async function createShift(token, p) {
+  await requireRole(token, APP.ADMIN_ROLES.concat(['HRBP']));
+  const id = uuid();
+  await appendRowAsync(SHEETS.SHIFTS, [
+    id, p.Name || '', p.StartTime || '', p.EndTime || '',
+    p.Days || 'Mon-Fri', 'Active', new Date().toISOString(), new Date().toISOString()
+  ]);
+  return { ok: true, shiftId: id };
+}
+
+async function listShifts(token) {
+  await requireLogin(token);
+  return { ok: true, shifts: await readRowsAsync(SHEETS.SHIFTS) };
+}
+
+async function assignShift(token, shiftId, employeeId, effectiveFrom, effectiveTo) {
+  await requireRole(token, APP.ADMIN_ROLES.concat(['HRBP']));
+  await appendRowAsync(SHEETS.SHIFT_ASSIGNMENTS, [
+    uuid(), shiftId, employeeId, effectiveFrom || '', effectiveTo || '', 'Active', new Date().toISOString()
+  ]);
+  return { ok: true };
+}
+
+async function clockAttendance(token, action) {
+  const me = await requireLogin(token);
+  const today = new Date().toISOString().split('T')[0];
+  const rows = (await readRowsAsync(SHEETS.ATTENDANCE)).filter(r => String(r.EmployeeID) === String(me.employeeId) && r.Date === today);
+  
+  if (action === 'in') {
+    if (rows.length > 0 && rows[0].ClockIn) throw new Error('Already clocked in today');
+    if (rows.length > 0) {
+      await updateByIdAsync(SHEETS.ATTENDANCE, 'AttendanceID', rows[0].AttendanceID, {
+        ClockIn: new Date().toISOString(), Status: 'Present'
+      });
+    } else {
+      await appendRowAsync(SHEETS.ATTENDANCE, [
+        uuid(), me.employeeId, today, new Date().toISOString(), '', '', 'Present', '', new Date().toISOString()
+      ]);
+    }
+    return { ok: true, message: 'Clocked in successfully' };
+  } else if (action === 'out') {
+    if (rows.length === 0 || !rows[0].ClockIn) throw new Error('Not clocked in today');
+    const clockIn = new Date(rows[0].ClockIn);
+    const now = new Date();
+    const hours = ((now - clockIn) / (1000 * 60 * 60)).toFixed(1);
+    await updateByIdAsync(SHEETS.ATTENDANCE, 'AttendanceID', rows[0].AttendanceID, {
+      ClockOut: now.toISOString(), HoursWorked: hours
+    });
+    return { ok: true, message: 'Clocked out successfully', hours };
+  }
+  throw new Error('Invalid action');
+}
+
+async function getMyAttendance(token) {
+  const me = await requireLogin(token);
+  const rows = await readRowsAsync(SHEETS.ATTENDANCE);
+  return rows.filter(r => String(r.EmployeeID) === String(me.employeeId));
+}
+
+async function getTeamAttendance(token) {
+  const me = await requireLogin(token);
+  if (!APP.ADMIN_ROLES.includes(me.role) && !APP.MANAGER_ROLES.includes(me.role)) throw new Error('Access denied');
+  const rows = await readRowsAsync(SHEETS.ATTENDANCE);
+  const today = new Date().toISOString().split('T')[0];
+  const todayRows = rows.filter(r => r.Date === today);
+  const emp = await readRowsAsync(SHEETS.EMP);
+  return todayRows.map(r => {
+    const e = emp.find(x => String(x.EmployeeID) === String(r.EmployeeID)) || {};
+    return { ...r, Name: [e.FirstName, e.LastName].join(' ') };
+  });
+}
+
+/* ================================================================
    EMPLOYEE SELF-SERVICE
    ================================================================ */
 async function selfServiceUpdateProfile(token, patch) {
@@ -2088,6 +2344,16 @@ module.exports = {
   saveOKR, getMyOKRs, submitPeerReview, getMyPeerReviews,
   // Advanced Analytics
   getAdvancedAnalytics,
+  // Announcements
+  createAnnouncement, listAnnouncements, markAnnouncementRead,
+  // Contract Management
+  createContract, listContracts, updateContract, getExpiringContracts,
+  // Grievance Management
+  createGrievance, listGrievances, updateGrievance, addGrievanceComment, getGrievanceComments,
+  // Employee Recognition
+  nominateRecognition, listRecognitions, approveRecognition, getRecognitionLeaderboard,
+  // Shift & Scheduling
+  createShift, listShifts, assignShift, clockAttendance, getMyAttendance, getTeamAttendance,
   // Employee Self-Service
   selfServiceUpdateProfile, submitChangeRequest,
   // Custom Reports

@@ -181,7 +181,22 @@ const SHEETS = {
   OKRs: 'OKRs',
   PEER_REVIEWS: 'Peer_Reviews',
   // Analytics
-  ANALYTICS_CACHE: 'Analytics_Cache'
+  ANALYTICS_CACHE: 'Analytics_Cache',
+  // Announcements
+  ANNOUNCEMENTS: 'Announcements',
+  ANNOUNCEMENT_READS: 'Announcement_Reads',
+  // Contract Management
+  CONTRACTS: 'Employee_Contracts',
+  // Grievance Management
+  GRIEVANCES: 'Grievances',
+  GRIEVANCE_COMMENTS: 'Grievance_Comments',
+  // Employee Recognition
+  RECOGNITIONS: 'Employee_Recognitions',
+  RECOGNITION_NOMINEES: 'Recognition_Nominees',
+  // Shift & Scheduling
+  SHIFTS: 'Work_Shifts',
+  SHIFT_ASSIGNMENTS: 'Shift_Assignments',
+  ATTENDANCE: 'Attendance_Log'
 };
 
 /** Canonical column order per table */
@@ -263,6 +278,21 @@ const SCHEMA = {
   Peer_Reviews: ['ReviewID', 'ReviewerID', 'RevieweeID', 'ReviewPeriod', 'Questions', 'Answers', 'OverallRating', 'Strengths', 'Improvements', 'Status', 'SubmittedAt'],
   // Analytics Cache
   Analytics_Cache: ['CacheID', 'ReportType', 'Filters', 'Data', 'GeneratedAt', 'ExpiresAt'],
+  // Announcements
+  Announcements: ['AnnouncementID', 'Title', 'Content', 'Category', 'Priority', 'TargetAudience', 'PublishedBy', 'PublishDate', 'ExpiryDate', 'Status', 'CreatedAt', 'UpdatedAt'],
+  Announcement_Reads: ['ReadID', 'AnnouncementID', 'EmployeeID', 'ReadAt'],
+  // Contract Management
+  Employee_Contracts: ['ContractID', 'EmployeeID', 'ContractType', 'StartDate', 'EndDate', 'ProbationEndDate', 'RenewalDate', 'Status', 'DocumentUrl', 'Notes', 'CreatedAt', 'UpdatedAt'],
+  // Grievance Management
+  Grievances: ['GrievanceID', 'EmployeeID', 'Category', 'Title', 'Description', 'Priority', 'Status', 'AssignedTo', 'Resolution', 'ResolvedAt', 'CreatedAt', 'UpdatedAt'],
+  Grievance_Comments: ['CommentID', 'GrievanceID', 'EmployeeID', 'Comment', 'CreatedAt'],
+  // Employee Recognition
+  Employee_Recognitions: ['RecognitionID', 'NominatorID', 'NomineeID', 'Category', 'Title', 'Description', 'Points', 'Status', 'ApprovedBy', 'ApprovedAt', 'CreatedAt'],
+  Recognition_Nominees: ['NomineeID', 'RecognitionID', 'EmployeeID', 'Votes', 'CreatedAt'],
+  // Shift & Scheduling
+  Work_Shifts: ['ShiftID', 'Name', 'StartTime', 'EndTime', 'Days', 'Status', 'CreatedAt', 'UpdatedAt'],
+  Shift_Assignments: ['AssignmentID', 'ShiftID', 'EmployeeID', 'EffectiveFrom', 'EffectiveTo', 'Status', 'CreatedAt'],
+  Attendance_Log: ['AttendanceID', 'EmployeeID', 'Date', 'ClockIn', 'ClockOut', 'HoursWorked', 'Status', 'Notes', 'CreatedAt']:
   Org_Chart: ['EmployeeID', 'ManagerID', 'PositionTitle', 'Department', 'Active'],
   // Extra Google Sheets tabs
   ExportLog: ['LogID', 'ExportType', 'EmployeeID', 'RequestedBy', 'FileUrl', 'RecordCount', 'Status', 'CreatedAt'],

@@ -224,6 +224,11 @@ const MENU_ITEMS = {
     { route: 'companies', icon: 'fas fa-building', label: 'Companies' },
     { route: 'policies', icon: 'fas fa-gavel', label: 'Policies' },
     { route: 'okrs', icon: 'fas fa-bullseye', label: 'OKRs' },
+    { route: 'announcements', icon: 'fas fa-bullhorn', label: 'Announcements' },
+    { route: 'contracts', icon: 'fas fa-file-contract', label: 'Contracts' },
+    { route: 'grievances', icon: 'fas fa-exclamation-triangle', label: 'Grievances' },
+    { route: 'recognition', icon: 'fas fa-trophy', label: 'Recognition' },
+    { route: 'shifts', icon: 'fas fa-clock', label: 'Shifts & Attendance' },
     { route: 'customreports', icon: 'fas fa-file-alt', label: 'Custom Reports' },
     { route: 'orgchart', icon: 'fas fa-sitemap', label: 'Org Chart' },
     { route: 'reports', icon: 'fas fa-chart-bar', label: 'Reports' },
@@ -310,6 +315,11 @@ const MENU_ITEMS = {
     { route: 'workflows', icon: 'fas fa-project-diagram', label: 'My Tasks' },
     { route: 'policies', icon: 'fas fa-gavel', label: 'Policies' },
     { route: 'okrs', icon: 'fas fa-bullseye', label: 'My OKRs' },
+    { route: 'announcements', icon: 'fas fa-bullhorn', label: 'Announcements' },
+    { route: 'contracts', icon: 'fas fa-file-contract', label: 'My Contract' },
+    { route: 'grievances', icon: 'fas fa-exclamation-triangle', label: 'Grievances' },
+    { route: 'recognition', icon: 'fas fa-trophy', label: 'Recognition' },
+    { route: 'shifts', icon: 'fas fa-clock', label: 'My Attendance' },
     { route: 'payslips', icon: 'fas fa-file-invoice-dollar', label: 'My Payslips' },
   ],
 };
@@ -361,6 +371,11 @@ function navigateTo(route) {
     companies: 'Multi-Company',
     policies: 'Compliance & Policies',
     okrs: 'OKRs & Performance',
+    announcements: 'Announcements',
+    contracts: 'Contract Management',
+    grievances: 'Grievance Management',
+    recognition: 'Employee Recognition',
+    shifts: 'Shifts & Attendance',
     customreports: 'Custom Reports',
     audit: 'Audit Trail',
     sessions: 'Active Sessions',
@@ -413,6 +428,11 @@ async function loadRoute(route) {
       case 'companies': await loadCompanies(); break;
       case 'policies': await loadPolicies(); break;
       case 'okrs': await loadOKRs(); break;
+      case 'announcements': await loadAnnouncements(); break;
+      case 'contracts': await loadContracts(); break;
+      case 'grievances': await loadGrievances(); break;
+      case 'recognition': await loadRecognition(); break;
+      case 'shifts': await loadShifts(); break;
       case 'customreports': await loadCustomReports(); break;
       case 'audit': await loadAuditTrail(); break;
       case 'sessions': await loadSessionManagement(); break;
@@ -4544,6 +4564,284 @@ async function loadOKRs() {
     const d = await call('saveOKR', STATE.token, p);
     if (!d.ok) return showToast(d.error, 'error'); showToast('OKR saved', 'success'); loadOKRs();
   });
+}
+
+// ===== ANNOUNCEMENTS =====
+async function loadAnnouncements() {
+  const content = document.getElementById('contentArea');
+  const role = STATE.user?.role;
+  const isAdmin = ['Admin', 'HRBP'].includes(role);
+  
+  const data = await call('listAnnouncements', STATE.token);
+  const announcements = data.announcements || [];
+  
+  content.innerHTML = `
+    ${isAdmin ? `
+    <div class="card mb-3"><div class="card-header"><h3>Create Announcement</h3></div><div class="card-body">
+      <form id="announceForm" class="employee-form">
+        <div class="form-group"><label>Title</label><input type="text" name="Title" required></div>
+        <div class="form-group" style="grid-column:1/-1;"><label>Content</label><textarea name="Content" rows="3" required></textarea></div>
+        <div class="form-group"><label>Category</label><select name="Category"><option value="General">General</option><option value="HR">HR</option><option value="IT">IT</option><option value="Finance">Finance</option><option value="Emergency">Emergency</option></select></div>
+        <div class="form-group"><label>Priority</label><select name="Priority"><option value="Normal">Normal</option><option value="High">High</option><option value="Urgent">Urgent</option></select></div>
+        <div class="form-group"><label>Audience</label><select name="TargetAudience"><option value="All">All Employees</option><option value="Managers">Managers Only</option><option value="HR">HR Only</option></select></div>
+        <div style="grid-column:1/-1;"><button type="submit" class="btn btn-primary"><i class="fas fa-bullhorn"></i> Publish</button></div>
+      </form>
+    </div></div>
+    ` : ''}
+    
+    <div class="card"><div class="card-header"><h3>Announcements (${announcements.length})</h3></div><div class="card-body">
+      ${announcements.map(a => `<div style="padding:16px;margin-bottom:12px;border:1px solid var(--gray-200);border-radius:var(--radius);border-left:4px solid ${a.Priority === 'Urgent' ? 'var(--danger)' : a.Priority === 'High' ? 'var(--warning)' : 'var(--primary)'};">
+        <div style="display:flex;justify-content:space-between;align-items:start;">
+          <div><h4>${a.Title || ''}</h4><span class="pill pill-info">${a.Category || 'General'}</span> <span class="pill ${a.Priority === 'Urgent' ? 'pill-danger' : a.Priority === 'High' ? 'pill-warning' : 'pill-info'}">${a.Priority || 'Normal'}</span></div>
+          <small style="color:var(--gray-500);">${a.PublishDate ? new Date(a.PublishDate).toLocaleDateString() : ''}</small>
+        </div>
+        <p style="margin-top:8px;color:var(--gray-600);">${a.Content || ''}</p>
+      </div>`).join('')}
+      ${announcements.length === 0 ? '<p style="color:var(--gray-500);">No announcements</p>' : ''}
+    </div></div>
+  `;
+  
+  if (isAdmin) {
+    document.getElementById('announceForm').addEventListener('submit', async (e) => {
+      e.preventDefault(); const p = Object.fromEntries(new FormData(e.target));
+      const d = await call('createAnnouncement', STATE.token, p);
+      if (!d.ok) return showToast(d.error, 'error'); showToast('Announcement published', 'success'); loadAnnouncements();
+    });
+  }
+}
+
+// ===== CONTRACT MANAGEMENT =====
+async function loadContracts() {
+  const content = document.getElementById('contentArea');
+  const role = STATE.user?.role;
+  const isAdmin = ['Admin', 'HRBP'].includes(role);
+  
+  const contracts = await call('listContracts', STATE.token);
+  const expiring = isAdmin ? await call('getExpiringContracts', STATE.token) : [];
+  const emps = isAdmin ? (await call('listEmployees', STATE.token)).employees || [] : [];
+  
+  content.innerHTML = `
+    ${expiring.length > 0 ? `
+    <div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:var(--radius);padding:16px;margin-bottom:20px;">
+      <strong style="color:#92400e;"><i class="fas fa-exclamation-triangle"></i> ${expiring.length} contract(s) expiring within 30 days</strong>
+    </div>
+    ` : ''}
+    
+    ${isAdmin ? `
+    <div class="card mb-3"><div class="card-header"><h3>Add Contract</h3></div><div class="card-body">
+      <form id="contractForm" class="employee-form">
+        <div class="form-group"><label>Employee</label><select name="EmployeeID" required><option value="">Select</option>${emps.map(e => `<option value="${e.EmployeeID}">${e.FirstName} ${e.LastName}</option>`).join('')}</select></div>
+        <div class="form-group"><label>Contract Type</label><select name="ContractType"><option value="Full-time">Full-time</option><option value="Part-time">Part-time</option><option value="Contract">Contract</option><option value="Internship">Internship</option><option value="Consultant">Consultant</option></select></div>
+        <div class="form-group"><label>Start Date</label><input type="date" name="StartDate" required></div>
+        <div class="form-group"><label>End Date</label><input type="date" name="EndDate"></div>
+        <div class="form-group"><label>Probation End Date</label><input type="date" name="ProbationEndDate"></div>
+        <div style="grid-column:1/-1;"><button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save</button></div>
+      </form>
+    </div></div>
+    ` : ''}
+    
+    <div class="card"><div class="card-header"><h3>Contracts</h3></div><div class="card-body"><div class="table-container">
+      <table><thead><tr><th>Employee</th><th>Type</th><th>Start</th><th>End</th><th>Probation</th><th>Status</th></tr></thead><tbody>
+      ${(contracts || []).map(c => {
+        const emp = emps.find(e => String(e.EmployeeID) === String(c.EmployeeID)) || {};
+        return `<tr><td>${emp.FirstName || ''} ${emp.LastName || ''}</td><td>${c.ContractType || ''}</td><td>${c.StartDate || ''}</td><td>${c.EndDate || 'Ongoing'}</td><td>${c.ProbationEndDate || '-'}</td><td><span class="pill ${c.Status === 'Active' ? 'pill-success' : 'pill-warning'}">${c.Status || ''}</span></td></tr>`;
+      }).join('')}
+      ${(contracts || []).length === 0 ? '<tr><td colspan="6" style="text-align:center;color:var(--gray-500);">No contracts</td></tr>' : ''}
+      </tbody></table>
+    </div></div></div>
+  `;
+  
+  if (isAdmin) {
+    document.getElementById('contractForm').addEventListener('submit', async (e) => {
+      e.preventDefault(); const p = Object.fromEntries(new FormData(e.target));
+      const d = await call('createContract', STATE.token, p);
+      if (!d.ok) return showToast(d.error, 'error'); showToast('Contract created', 'success'); loadContracts();
+    });
+  }
+}
+
+// ===== GRIEVANCE MANAGEMENT =====
+async function loadGrievances() {
+  const content = document.getElementById('contentArea');
+  const role = STATE.user?.role;
+  const isAdmin = ['Admin', 'HRBP', 'Manager'].includes(role);
+  
+  const grievances = await call('listGrievances', STATE.token);
+  const emps = isAdmin ? (await call('listEmployees', STATE.token)).employees || [] : [];
+  
+  content.innerHTML = `
+    <div class="card mb-3"><div class="card-header"><h3>Submit Grievance</h3></div><div class="card-body">
+      <form id="grievanceForm" class="employee-form">
+        <div class="form-group"><label>Category</label><select name="Category"><option value="Workplace Safety">Workplace Safety</option><option value="Harassment">Harassment</option><option value="Discrimination">Discrimination</option><option value="Workload">Workload</option><option value="Compensation">Compensation</option><option value="Management">Management</option><option value="Other">Other</option></select></div>
+        <div class="form-group"><label>Title</label><input type="text" name="Title" required></div>
+        <div class="form-group" style="grid-column:1/-1;"><label>Description</label><textarea name="Description" rows="3" required></textarea></div>
+        <div class="form-group"><label>Priority</label><select name="Priority"><option value="Low">Low</option><option value="Medium" selected>Medium</option><option value="High">High</option><option value="Critical">Critical</option></select></div>
+        ${isAdmin ? `<div class="form-group"><label>Assign To</label><select name="AssignedTo"><option value="">Select</option>${emps.map(e => `<option value="${e.EmployeeID}">${e.FirstName} ${e.LastName}</option>`).join('')}</select></div>` : ''}
+        <div style="grid-column:1/-1;"><button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane"></i> Submit</button></div>
+      </form>
+    </div></div>
+    
+    <div class="card"><div class="card-header"><h3>Grievances (${(grievances || []).length})</h3></div><div class="card-body">
+      ${(grievances || []).map(g => `<div style="padding:16px;margin-bottom:12px;border:1px solid var(--gray-200);border-radius:var(--radius);">
+        <div style="display:flex;justify-content:space-between;align-items:start;">
+          <div><h4>${g.Title || ''}</h4><span class="pill pill-info">${g.Category || ''}</span> <span class="pill ${g.Priority === 'Critical' || g.Priority === 'High' ? 'pill-danger' : 'pill-warning'}">${g.Priority || ''}</span></div>
+          <span class="pill ${g.Status === 'Resolved' ? 'pill-success' : g.Status === 'Open' ? 'pill-warning' : 'pill-info'}">${g.Status || ''}</span>
+        </div>
+        <p style="margin-top:8px;color:var(--gray-600);font-size:14px;">${g.Description || ''}</p>
+        ${g.Resolution ? `<p style="margin-top:8px;font-size:13px;color:var(--success);"><strong>Resolution:</strong> ${g.Resolution}</p>` : ''}
+      </div>`).join('')}
+      ${(grievances || []).length === 0 ? '<p style="color:var(--gray-500);">No grievances</p>' : ''}
+    </div></div>
+  `;
+  
+  document.getElementById('grievanceForm').addEventListener('submit', async (e) => {
+    e.preventDefault(); const p = Object.fromEntries(new FormData(e.target));
+    const d = await call('createGrievance', STATE.token, p);
+    if (!d.ok) return showToast(d.error, 'error'); showToast('Grievance submitted', 'success'); loadGrievances();
+  });
+}
+
+// ===== EMPLOYEE RECOGNITION =====
+async function loadRecognition() {
+  const content = document.getElementById('contentArea');
+  const role = STATE.user?.role;
+  const isAdmin = ['Admin', 'HRBP'].includes(role);
+  
+  const [recsData, leaderboard] = await Promise.all([
+    call('listRecognitions', STATE.token),
+    call('getRecognitionLeaderboard', STATE.token)
+  ]);
+  const recs = recsData.recognitions || [];
+  const emps = (await call('listEmployees', STATE.token)).employees || [];
+  
+  content.innerHTML = `
+    <div style="display:grid;grid-template-columns:2fr 1fr;gap:20px;">
+      <div>
+        <div class="card mb-3"><div class="card-header"><h3>Nominate for Recognition</h3></div><div class="card-body">
+          <form id="recForm" class="employee-form">
+            <div class="form-group"><label>Nominee</label><select name="NomineeID" required><option value="">Select</option>${emps.map(e => `<option value="${e.EmployeeID}">${e.FirstName} ${e.LastName}</option>`).join('')}</select></div>
+            <div class="form-group"><label>Category</label><select name="Category"><option value="Kudos">Kudos</option><option value="Team Player">Team Player</option><option value="Innovation">Innovation</option><option value="Leadership">Leadership</option><option value="Customer Service">Customer Service</option><option value="Rising Star">Rising Star</option></select></div>
+            <div class="form-group"><label>Title</label><input type="text" name="Title" required placeholder="e.g. Outstanding Q3 Performance"></div>
+            <div class="form-group" style="grid-column:1/-1;"><label>Description</label><textarea name="Description" rows="2" placeholder="Why are you nominating this person?"></textarea></div>
+            <div class="form-group"><label>Points</label><select name="Points"><option value="10">10</option><option value="25">25</option><option value="50">50</option><option value="100">100</option></select></div>
+            <div style="grid-column:1/-1;"><button type="submit" class="btn btn-primary"><i class="fas fa-trophy"></i> Nominate</button></div>
+          </form>
+        </div></div>
+        
+        <div class="card"><div class="card-header"><h3>Recognition Wall</h3></div><div class="card-body">
+          ${recs.map(r => {
+            const nominee = emps.find(e => String(e.EmployeeID) === String(r.NomineeID)) || {};
+            const nominator = emps.find(e => String(e.EmployeeID) === String(r.NominatorID)) || {};
+            return `<div style="padding:12px;margin-bottom:8px;border:1px solid var(--gray-200);border-radius:var(--radius);border-left:4px solid ${r.Status === 'Approved' ? 'var(--success)' : 'var(--warning)'};">
+              <div style="display:flex;justify-content:space-between;">
+                <div><strong>${r.Title || ''}</strong><br><span style="font-size:13px;color:var(--gray-500);">${nominee.FirstName || ''} ${nominee.LastName || ''}</span></div>
+                <span class="pill ${r.Status === 'Approved' ? 'pill-success' : 'pill-warning'}">${r.Points || 10} pts</span>
+              </div>
+              <p style="font-size:13px;color:var(--gray-600);margin-top:4px;">${r.Description || ''}</p>
+              ${isAdmin && r.Status === 'Pending' ? `<button class="btn btn-sm btn-success" style="margin-top:8px;" onclick="approveRec('${r.RecognitionID}')"><i class="fas fa-check"></i> Approve</button>` : ''}
+            </div>`;
+          }).join('')}
+          ${recs.length === 0 ? '<p style="color:var(--gray-500);">No recognitions yet</p>' : ''}
+        </div></div>
+      </div>
+      
+      <div class="card" style="height:fit-content;"><div class="card-header"><h3>🏆 Leaderboard</h3></div><div class="card-body">
+        ${(leaderboard || []).slice(0, 10).map((r, i) => `<div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--gray-100);">
+          <span style="font-size:18px;font-weight:bold;color:${i === 0 ? '#FFD700' : i === 1 ? '#C0C0C0' : i === 2 ? '#CD7F32' : 'var(--gray-500)'};">#${i + 1}</span>
+          <div style="flex:1;"><div style="font-weight:500;">${r.name || ''}</div></div>
+          <span style="font-weight:bold;color:var(--primary);">${r.points || 0} pts</span>
+        </div>`).join('')}
+        {(leaderboard || []).length === 0 ? '<p style="color:var(--gray-500);">No points yet</p>' : ''}
+      </div></div>
+    </div>
+  `;
+  
+  document.getElementById('recForm').addEventListener('submit', async (e) => {
+    e.preventDefault(); const p = Object.fromEntries(new FormData(e.target));
+    const d = await call('nominateRecognition', STATE.token, p);
+    if (!d.ok) return showToast(d.error, 'error'); showToast('Nomination submitted', 'success'); loadRecognition();
+  });
+}
+
+async function approveRec(recId) {
+  const d = await call('approveRecognition', STATE.token, recId);
+  if (!d.ok) return showToast(d.error, 'error'); showToast('Recognition approved', 'success'); loadRecognition();
+}
+
+// ===== SHIFTS & ATTENDANCE =====
+async function loadShifts() {
+  const content = document.getElementById('contentArea');
+  const role = STATE.user?.role;
+  const isAdmin = ['Admin', 'HRBP'].includes(role);
+  
+  const [shiftsData, attendance] = await Promise.all([
+    call('listShifts', STATE.token),
+    isAdmin ? call('getTeamAttendance', STATE.token) : call('getMyAttendance', STATE.token)
+  ]);
+  const shifts = shiftsData.shifts || [];
+  
+  content.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+      <div>
+        <div class="card mb-3"><div class="card-header"><h3>Clock In/Out</h3></div><div class="card-body" style="text-align:center;">
+          <div style="margin-bottom:16px;">
+            <div style="font-size:48px;font-weight:bold;color:var(--primary);" id="currentTime"></div>
+            <div style="color:var(--gray-500);" id="currentDate"></div>
+          </div>
+          <div style="display:flex;gap:16px;justify-content:center;">
+            <button class="btn btn-success" style="padding:16px 32px;font-size:16px;" onclick="clockIn()"><i class="fas fa-sign-in-alt"></i> Clock In</button>
+            <button class="btn btn-danger" style="padding:16px 32px;font-size:16px;" onclick="clockOut()"><i class="fas fa-sign-out-alt"></i> Clock Out</button>
+          </div>
+        </div></div>
+        
+        ${isAdmin ? `
+        <div class="card mb-3"><div class="card-header"><h3>Create Shift</h3></div><div class="card-body">
+          <form id="shiftForm" class="employee-form">
+            <div class="form-group"><label>Shift Name</label><input type="text" name="Name" required placeholder="e.g. Morning Shift"></div>
+            <div class="form-group"><label>Start Time</label><input type="time" name="StartTime" required></div>
+            <div class="form-group"><label>End Time</label><input type="time" name="EndTime" required></div>
+            <div class="form-group"><label>Days</label><select name="Days"><option value="Mon-Fri">Mon-Fri</option><option value="Mon-Sat">Mon-Sat</option><option value="24/7">24/7</option><option value="Custom">Custom</option></select></div>
+            <div style="grid-column:1/-1;"><button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save</button></div>
+          </form>
+        </div></div>
+        ` : ''}
+      </div>
+      
+      <div class="card"><div class="card-header"><h3>My Attendance</h3></div><div class="card-body"><div class="table-container">
+        <table><thead><tr><th>Date</th><th>Clock In</th><th>Clock Out</th><th>Hours</th><th>Status</th></tr></thead><tbody>
+        ${(attendance || []).slice(0, 15).map(a => `<tr><td>${a.Date || ''}</td><td>${a.ClockIn ? new Date(a.ClockIn).toLocaleTimeString() : '-'}</td><td>${a.ClockOut ? new Date(a.ClockOut).toLocaleTimeString() : '-'}</td><td>${a.HoursWorked || '-'}</td><td><span class="pill ${a.Status === 'Present' ? 'pill-success' : 'pill-warning'}">${a.Status || ''}</span></td></tr>`).join('')}
+        ${(attendance || []).length === 0 ? '<tr><td colspan="5" style="text-align:center;color:var(--gray-500);">No attendance records</td></tr>' : ''}
+        </tbody></table>
+      </div></div></div>
+    </div>
+  `;
+  
+  // Update clock
+  function updateClock() {
+    const now = new Date();
+    document.getElementById('currentTime').textContent = now.toLocaleTimeString();
+    document.getElementById('currentDate').textContent = now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  }
+  updateClock();
+  setInterval(updateClock, 1000);
+  
+  if (isAdmin) {
+    document.getElementById('shiftForm').addEventListener('submit', async (e) => {
+      e.preventDefault(); const p = Object.fromEntries(new FormData(e.target));
+      const d = await call('createShift', STATE.token, p);
+      if (!d.ok) return showToast(d.error, 'error'); showToast('Shift created', 'success'); loadShifts();
+    });
+  }
+}
+
+async function clockIn() {
+  const d = await call('clockAttendance', STATE.token, 'in');
+  if (!d.ok) return showToast(d.error, 'error'); showToast(d.message, 'success');
+}
+
+async function clockOut() {
+  const d = await call('clockAttendance', STATE.token, 'out');
+  if (!d.ok) return showToast(d.error, 'error'); showToast(d.message + ' (' + d.hours + ' hours)', 'success'); loadShifts();
 }
 
 // ===== Init =====
