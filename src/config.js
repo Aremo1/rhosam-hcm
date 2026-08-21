@@ -150,7 +150,23 @@ const SHEETS = {
   SUCCESSORS: 'Successors',
   TALENT_MATRIX: 'TalentMatrix',
   MCQ_IMPORT: 'MCQ_Import',
-  PAYROLL_AUDIT: 'Payroll_Audit'
+  PAYROLL_AUDIT: 'Payroll_Audit',
+  // Asset Management
+  ASSETS: 'Company_Assets',
+  ASSET_ASSIGNMENTS: 'Asset_Assignments',
+  // Travel & Expense
+  EXPENSE_CLAIMS: 'Expense_Claims',
+  EXPENSE_ITEMS: 'Expense_Items',
+  TRAVEL_REQUESTS: 'Travel_Requests',
+  // Training Calendar
+  TRAINING_SESSIONS: 'Training_Sessions',
+  TRAINING_ATTENDANCE: 'Training_Attendance',
+  // Employee Engagement
+  ENGAGEMENT_SURVEYS: 'Engagement_Surveys',
+  ENGAGEMENT_RESPONSES: 'Engagement_Responses',
+  // Separation/Exit
+  EXIT_INTERVIEWS: 'Exit_Interviews',
+  EXIT_CLEARANCE: 'Exit_Clearance'
 };
 
 /** Canonical column order per table */
@@ -201,6 +217,22 @@ const SCHEMA = {
   Employee_Certifications: ['CertificationID', 'EmployeeID', 'CertName', 'IssuingBody', 'IssueDate', 'ExpiryDate', 'CredentialID', 'Status', 'CreatedAt', 'UpdatedAt'],
   Employee_WorkHistory: ['HistoryID', 'EmployeeID', 'CompanyName', 'Position', 'StartDate', 'EndDate', 'ReasonForLeaving', 'CreatedAt', 'UpdatedAt'],
   Employee_Dependents: ['DependentID', 'EmployeeID', 'FullName', 'Relationship', 'DateOfBirth', 'Gender', 'Phone', 'IsEmergencyContact', 'CreatedAt', 'UpdatedAt'],
+  // Asset Management
+  Company_Assets: ['AssetID', 'AssetName', 'AssetTag', 'Category', 'SerialNumber', 'PurchaseDate', 'PurchaseCost', 'CurrentValue', 'Status', 'Condition', 'Location', 'AssignedTo', 'Notes', 'CreatedAt', 'UpdatedAt'],
+  Asset_Assignments: ['AssignmentID', 'AssetID', 'EmployeeID', 'AssignedDate', 'ReturnedDate', 'Condition', 'Status', 'Notes', 'CreatedAt'],
+  // Travel & Expense
+  Expense_Claims: ['ClaimID', 'EmployeeID', 'Period', 'TotalAmount', 'Currency', 'Status', 'ApprovedBy', 'ApprovedAt', 'PaymentDate', 'Notes', 'CreatedAt', 'UpdatedAt'],
+  Expense_Items: ['ItemID', 'ClaimID', 'Category', 'Description', 'Amount', 'ReceiptUrl', 'Date', 'CreatedAt'],
+  Travel_Requests: ['RequestID', 'EmployeeID', 'Destination', 'Purpose', 'DepartDate', 'ReturnDate', 'EstimatedCost', 'Status', 'ApprovedBy', 'ApprovedAt', 'Notes', 'CreatedAt', 'UpdatedAt'],
+  // Training Calendar
+  Training_Sessions: ['SessionID', 'Title', 'Description', 'Trainer', 'Location', 'StartDate', 'EndDate', 'StartTime', 'EndTime', 'MaxParticipants', 'Status', 'CourseID', 'CreatedAt', 'UpdatedAt'],
+  Training_Attendance: ['AttendanceID', 'SessionID', 'EmployeeID', 'Status', 'Feedback', 'Score', 'CreatedAt'],
+  // Employee Engagement
+  Engagement_Surveys: ['SurveyID', 'Title', 'Description', 'Questions', 'StartDate', 'EndDate', 'Status', 'CreatedBy', 'CreatedAt', 'UpdatedAt'],
+  Engagement_Responses: ['ResponseID', 'SurveyID', 'EmployeeID', 'Answers', 'SubmittedAt'],
+  // Separation/Exit
+  Exit_Interviews: ['InterviewID', 'EmployeeID', 'InterviewerID', 'Questions', 'Answers', 'OverallRating', 'Recommendations', 'Status', 'CompletedAt', 'CreatedAt'],
+  Exit_Clearance: ['ClearanceID', 'EmployeeID', 'Department', 'Task', 'Status', 'ClearedBy', 'ClearedAt', 'Notes', 'CreatedAt', 'UpdatedAt'],
   Org_Chart: ['EmployeeID', 'ManagerID', 'PositionTitle', 'Department', 'Active'],
   // Extra Google Sheets tabs
   ExportLog: ['LogID', 'ExportType', 'EmployeeID', 'RequestedBy', 'FileUrl', 'RecordCount', 'Status', 'CreatedAt'],

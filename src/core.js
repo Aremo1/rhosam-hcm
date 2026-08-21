@@ -1410,6 +1410,325 @@ async function checkProbationReviews() {
 }
 
 /* ================================================================
+   ASSET MANAGEMENT
+   ================================================================ */
+async function createAsset(token, p) {
+  await requireRole(token, APP.ADMIN_ROLES.concat(['HRBP']));
+  const id = uuid();
+  await appendRowAsync(SHEETS.ASSETS, [
+    id, p.AssetName || '', p.AssetTag || '', p.Category || '', p.SerialNumber || '',
+    p.PurchaseDate || '', p.PurchaseCost || '0', p.CurrentValue || '0', 'Available',
+    p.Condition || 'Good', p.Location || '', '', p.Notes || '',
+    new Date().toISOString(), new Date().toISOString()
+  ]);
+  return { ok: true, assetId: id };
+}
+
+async function listAssets(token) {
+  await requireRole(token, APP.ADMIN_ROLES.concat(['HRBP']));
+  return { ok: true, assets: await readRowsAsync(SHEETS.ASSETS) };
+}
+
+async function assignAsset(token, assetId, employeeId, notes) {
+  await requireRole(token, APP.ADMIN_ROLES.concat(['HRBP']));
+  const id = uuid();
+  await updateByIdAsync(SHEETS.ASSETS, 'AssetID', assetId, { Status: 'Assigned', AssignedTo: employeeId, UpdatedAt: new Date().toISOString() });
+  await appendRowAsync(SHEETS.ASSET_ASSIGNMENTS, [
+    id, assetId, employeeId, new Date().toISOString(), '', 'Good', 'Active', notes || '', new Date().toISOString()
+  ]);
+  return { ok: true, assignmentId: id };
+}
+
+async function returnAsset(token, assetId, condition, notes) {
+  await requireRole(token, APP.ADMIN_ROLES.concat(['HRBP']));
+  await updateByIdAsync(SHEETS.ASSETS, 'AssetID', assetId, { Status: 'Available', AssignedTo: '', Condition: condition || 'Good', UpdatedAt: new Date().toISOString() });
+  const assigns = (await readRowsAsync(SHEETS.ASSET_ASSIGNMENTS)).filter(a => String(a.AssetID) === String(assetId) && a.Status === 'Active');
+  for (const a of assigns) {
+    await updateByIdAsync(SHEETS.ASSET_ASSIGNMENTS, 'AssignmentID', a.AssignmentID, { Status: 'Returned', ReturnedDate: new Date().toISOString(), Condition: condition || 'Good', Notes: notes || '' });
+  }
+  return { ok: true };
+}
+
+async function deleteAsset(token, assetId) {
+  await requireRole(token, APP.ADMIN_ROLES);
+  await updateByIdAsync(SHEETS.ASSETS, 'AssetID', assetId, { Status: 'Disposed', UpdatedAt: new Date().toISOString() });
+  return { ok: true };
+}
+
+async function getMyAssets(token) {
+  const me = await requireLogin(token);
+  const assets = await readRowsAsync(SHEETS.ASSETS);
+  return assets.filter(a => String(a.AssignedTo) === String(me.employeeId));
+}
+
+/* ================================================================
+   TRAVEL & EXPENSE
+   ================================================================ */
+async function createExpenseClaim(token, p) {
+  const me = await requireLogin(token);
+  const id = uuid();
+  await appendRowAsync(SHEETS.EXPENSE_CLAIMS, [
+    id, me.employeeId, p.Period || '', Number(p.TotalAmount || 0), p.Currency || 'NGN',
+    'Submitted', '', '', '', p.Notes || '', new Date().toISOString(), new Date().toISOString()
+  ]);
+  // Add expense items
+  for (const item of (p.Items || [])) {
+    await appendRowAsync(SHEETS.EXPENSE_ITEMS, [
+      uuid(), id, item.Category || '', item.Description || '', Number(item.Amount || 0),
+      item.ReceiptUrl || '', item.Date || '', new Date().toISOString()
+    ]);
+  }
+  // Notify manager
+  const emp = await findByIdAsync(SHEETS.EMP, 'EmployeeID', me.employeeId);
+  if (emp && emp.ManagerID) {
+    await notify(emp.ManagerID, me.employeeId, 'Expense Approval', 'Expense claim submitted',
+      `${me.email} submitted an expense claim of ₦${Number(p.TotalAmount || 0).toLocaleString()}`,
+      { category: 'General', canApprove: true, refType: 'Expense', refId: id });
+  }
+  return { ok: true, claimId: id };
+}
+
+async function getMyExpenseClaims(token) {
+  const me = await requireLogin(token);
+  const claims = await readRowsAsync(SHEETS.EXPENSE_CLAIMS);
+  if (APP.ADMIN_ROLES.includes(me.role)) return claims;
+  if (APP.MANAGER_ROLES.includes(me.role)) {
+    const teamIds = (await readRowsAsync(SHEETS.EMP)).filter(e => String(e.ManagerID) === String(me.employeeId)).map(e => e.EmployeeID);
+    return claims.filter(c => String(c.EmployeeID) === String(me.employeeId) || teamIds.includes(c.EmployeeID));
+  }
+  return claims.filter(c => String(c.EmployeeID) === String(me.employeeId));
+}
+
+async function approveExpenseClaim(token, claimId, decision, comment) {
+  const me = await requireLogin(token);
+  if (!APP.ADMIN_ROLES.includes(me.role) && !APP.MANAGER_ROLES.includes(me.role)) throw new Error('Access denied');
+  const status = decision === 'approve' ? 'Approved' : 'Rejected';
+  await updateByIdAsync(SHEETS.EXPENSE_CLAIMS, 'ClaimID', claimId, {
+    Status: status, ApprovedBy: me.employeeId, ApprovedAt: new Date().toISOString(),
+    Notes: comment || '', UpdatedAt: new Date().toISOString()
+  });
+  const claim = await findByIdAsync(SHEETS.EXPENSE_CLAIMS, 'ClaimID', claimId);
+  if (claim) await notify(claim.EmployeeID, me.employeeId, 'Expense ' + decision, 'Expense claim ' + decision, comment || '', { category: 'General' });
+  return { ok: true };
+}
+
+async function createTravelRequest(token, p) {
+  const me = await requireLogin(token);
+  const id = uuid();
+  await appendRowAsync(SHEETS.TRAVEL_REQUESTS, [
+    id, me.employeeId, p.Destination || '', p.Purpose || '',
+    p.DepartDate || '', p.ReturnDate || '', p.EstimatedCost || '0',
+    'Submitted', '', '', p.Notes || '', new Date().toISOString(), new Date().toISOString()
+  ]);
+  const emp = await findByIdAsync(SHEETS.EMP, 'EmployeeID', me.employeeId);
+  if (emp && emp.ManagerID) {
+    await notify(emp.ManagerID, me.employeeId, 'Travel Approval', 'Travel request submitted',
+      `${me.email} requested travel to ${p.Destination || 'Unknown'}`,
+      { category: 'General', canApprove: true, refType: 'Travel', refId: id });
+  }
+  return { ok: true, requestId: id };
+}
+
+async function getMyTravelRequests(token) {
+  const me = await requireLogin(token);
+  const requests = await readRowsAsync(SHEETS.TRAVEL_REQUESTS);
+  if (APP.ADMIN_ROLES.includes(me.role)) return requests;
+  return requests.filter(r => String(r.EmployeeID) === String(me.employeeId));
+}
+
+async function approveTravelRequest(token, requestId, decision, comment) {
+  const me = await requireLogin(token);
+  if (!APP.ADMIN_ROLES.includes(me.role) && !APP.MANAGER_ROLES.includes(me.role)) throw new Error('Access denied');
+  const status = decision === 'approve' ? 'Approved' : 'Rejected';
+  await updateByIdAsync(SHEETS.TRAVEL_REQUESTS, 'RequestID', requestId, {
+    Status: status, ApprovedBy: me.employeeId, ApprovedAt: new Date().toISOString(),
+    Notes: comment || '', UpdatedAt: new Date().toISOString()
+  });
+  const req = await findByIdAsync(SHEETS.TRAVEL_REQUESTS, 'RequestID', requestId);
+  if (req) await notify(req.EmployeeID, me.employeeId, 'Travel ' + decision, 'Travel request ' + decision, comment || '', { category: 'General' });
+  return { ok: true };
+}
+
+/* ================================================================
+   TRAINING CALENDAR
+   ================================================================ */
+async function createTrainingSession(token, p) {
+  await requireRole(token, APP.LEARNING_ROLES.concat(APP.ADMIN_ROLES));
+  const id = uuid();
+  await appendRowAsync(SHEETS.TRAINING_SESSIONS, [
+    id, p.Title || '', p.Description || '', p.Trainer || '', p.Location || '',
+    p.StartDate || '', p.EndDate || '', p.StartTime || '', p.EndTime || '',
+    p.MaxParticipants || '0', 'Scheduled', p.CourseID || '',
+    new Date().toISOString(), new Date().toISOString()
+  ]);
+  return { ok: true, sessionId: id };
+}
+
+async function listTrainingSessions(token) {
+  await requireLogin(token);
+  return { ok: true, sessions: await readRowsAsync(SHEETS.TRAINING_SESSIONS) };
+}
+
+async function registerForTraining(token, sessionId) {
+  const me = await requireLogin(token);
+  const id = uuid();
+  await appendRowAsync(SHEETS.TRAINING_ATTENDANCE, [
+    id, sessionId, me.employeeId, 'Registered', '', '', new Date().toISOString()
+  ]);
+  return { ok: true, attendanceId: id };
+}
+
+async function markTrainingAttendance(token, sessionId, employeeId, status, score) {
+  await requireRole(token, APP.LEARNING_ROLES.concat(APP.ADMIN_ROLES));
+  const rows = (await readRowsAsync(SHEETS.TRAINING_ATTENDANCE)).filter(a => String(a.SessionID) === String(sessionId) && String(a.EmployeeID) === String(employeeId));
+  if (rows.length > 0) {
+    await updateByIdAsync(SHEETS.TRAINING_ATTENDANCE, 'AttendanceID', rows[0].AttendanceID, { Status: status || 'Attended', Score: score || '' });
+  }
+  return { ok: true };
+}
+
+async function getTrainingAttendance(token, sessionId) {
+  await requireLogin(token);
+  const rows = (await readRowsAsync(SHEETS.TRAINING_ATTENDANCE)).filter(a => String(a.SessionID) === String(sessionId));
+  const emp = await readRowsAsync(SHEETS.EMP);
+  return rows.map(r => {
+    const e = emp.find(x => String(x.EmployeeID) === String(r.EmployeeID)) || {};
+    return { ...r, Name: [e.FirstName, e.LastName].join(' ') };
+  });
+}
+
+async function getMyTrainingRegistrations(token) {
+  const me = await requireLogin(token);
+  const rows = await readRowsAsync(SHEETS.TRAINING_ATTENDANCE);
+  return rows.filter(r => String(r.EmployeeID) === String(me.employeeId));
+}
+
+/* ================================================================
+   EMPLOYEE ENGAGEMENT
+   ================================================================ */
+async function createEngagementSurvey(token, p) {
+  await requireRole(token, APP.ADMIN_ROLES.concat(['HRBP', 'Performance Manager']));
+  const id = uuid();
+  await appendRowAsync(SHEETS.ENGAGEMENT_SURVEYS, [
+    id, p.Title || '', p.Description || '', JSON.stringify(p.Questions || []),
+    p.StartDate || '', p.EndDate || '', 'Active', me?.employeeId || '',
+    new Date().toISOString(), new Date().toISOString()
+  ]);
+  return { ok: true, surveyId: id };
+}
+
+async function listEngagementSurveys(token) {
+  await requireLogin(token);
+  return { ok: true, surveys: await readRowsAsync(SHEETS.ENGAGEMENT_SURVEYS) };
+}
+
+async function submitEngagementResponse(token, surveyId, answers) {
+  const me = await requireLogin(token);
+  const id = uuid();
+  await appendRowAsync(SHEETS.ENGAGEMENT_RESPONSES, [
+    id, surveyId, me.employeeId, JSON.stringify(answers || {}), new Date().toISOString()
+  ]);
+  return { ok: true, responseId: id };
+}
+
+async function getEngagementResults(token, surveyId) {
+  await requireRole(token, APP.ADMIN_ROLES.concat(['HRBP', 'Performance Manager']));
+  const responses = (await readRowsAsync(SHEETS.ENGAGEMENT_RESPONSES)).filter(r => String(r.SurveyID) === String(surveyId));
+  return { ok: true, totalResponses: responses.length, responses };
+}
+
+/* ================================================================
+   SEPARATION / EXIT MANAGEMENT
+   ================================================================ */
+async function createExitInterview(token, p) {
+  await requireRole(token, APP.ADMIN_ROLES.concat(['HRBP']));
+  const id = uuid();
+  await appendRowAsync(SHEETS.EXIT_INTERVIEWS, [
+    id, p.EmployeeID || '', p.InterviewerID || '',
+    JSON.stringify(p.Questions || []), JSON.stringify(p.Answers || {}),
+    p.OverallRating || '', p.Recommendations || '', 'Open', '',
+    new Date().toISOString()
+  ]);
+  return { ok: true, interviewId: id };
+}
+
+async function completeExitInterview(token, interviewId, answers, rating, recommendations) {
+  const me = await requireLogin(token);
+  await updateByIdAsync(SHEETS.EXIT_INTERVIEWS, 'InterviewID', interviewId, {
+    Answers: JSON.stringify(answers || {}), OverallRating: rating || '',
+    Recommendations: recommendations || '', Status: 'Completed',
+    CompletedAt: new Date().toISOString()
+  });
+  return { ok: true };
+}
+
+async function getExitInterviews(token) {
+  await requireRole(token, APP.ADMIN_ROLES.concat(['HRBP']));
+  const rows = await readRowsAsync(SHEETS.EXIT_INTERVIEWS);
+  const emp = await readRowsAsync(SHEETS.EMP);
+  return rows.map(r => {
+    const e = emp.find(x => String(x.EmployeeID) === String(r.EmployeeID)) || {};
+    return { ...r, EmployeeName: [e.FirstName, e.LastName].join(' ') };
+  });
+}
+
+async function createExitClearance(token, employeeId) {
+  await requireRole(token, APP.ADMIN_ROLES.concat(['HRBP']));
+  const tasks = ['Return IT Equipment', 'Return Access Cards', 'Clear Outstanding Loans', 'Handover Projects', 'Exit Interview Completed', 'Final Pay Processing', 'Update Employee Status'];
+  const departments = ['IT', 'HR', 'Finance', 'Operations', 'Admin', 'HR', 'Payroll'];
+  for (let i = 0; i < tasks.length; i++) {
+    await appendRowAsync(SHEETS.EXIT_CLEARANCE, [
+      uuid(), employeeId, departments[i] || '', tasks[i], 'Pending', '', '', '',
+      new Date().toISOString(), new Date().toISOString()
+    ]);
+  }
+  return { ok: true };
+}
+
+async function getExitClearance(token, employeeId) {
+  await requireLogin(token);
+  const rows = (await readRowsAsync(SHEETS.EXIT_CLEARANCE)).filter(r => String(r.EmployeeID) === String(employeeId));
+  return rows;
+}
+
+async function updateExitClearance(token, clearanceId, status, clearedBy, notes) {
+  await requireRole(token, APP.ADMIN_ROLES.concat(['HRBP']));
+  await updateByIdAsync(SHEETS.EXIT_CLEARANCE, 'ClearanceID', clearanceId, {
+    Status: status || 'Cleared', ClearedBy: clearedBy || '',
+    ClearedAt: new Date().toISOString(), Notes: notes || '',
+    UpdatedAt: new Date().toISOString()
+  });
+  return { ok: true };
+}
+
+/* ================================================================
+   CUSTOM REPORTS
+   ================================================================ */
+async function generateCustomReport(token, p) {
+  await requireRole(token, APP.ADMIN_ROLES.concat(['HRBP']));
+  const emp = await readRowsAsync(SHEETS.EMP);
+  let filtered = emp;
+  
+  // Apply filters
+  if (p.department) filtered = filtered.filter(e => e.Department === p.department);
+  if (p.location) filtered = filtered.filter(e => e.Location === p.location);
+  if (p.jobLevel) filtered = filtered.filter(e => String(e.JobLevel) === String(p.jobLevel));
+  if (p.grade) filtered = filtered.filter(e => e.Grade === p.grade);
+  if (p.gender) filtered = filtered.filter(e => String(e.Gender).toLowerCase() === p.gender.toLowerCase());
+  if (p.status) filtered = filtered.filter(e => String(e.EmploymentStatus) === p.status);
+  
+  // Select columns
+  const columns = p.columns || ['EmployeeID', 'FirstName', 'LastName', 'Email', 'Department', 'Position', 'Location', 'EmploymentStatus'];
+  const rows = filtered.map(e => {
+    const row = {};
+    columns.forEach(c => { row[c] = e[c] || ''; });
+    return row;
+  });
+  
+  return { ok: true, totalRows: rows.length, columns, rows };
+}
+
+/* ================================================================
    BULK IMPORT
    ================================================================ */
 async function bulkImportMCQFromSheet(token) { return { ok: true, imported: 0 }; }
@@ -1472,6 +1791,18 @@ module.exports = {
   saveEmployeeCertification, getEmployeeCertifications, deleteEmployeeCertification,
   saveEmployeeWorkHistory, getEmployeeWorkHistory, deleteEmployeeWorkHistory,
   saveEmployeeDependent, getEmployeeDependents, deleteEmployeeDependent,
+  // Asset Management
+  createAsset, listAssets, assignAsset, returnAsset, deleteAsset, getMyAssets,
+  // Travel & Expense
+  createExpenseClaim, getMyExpenseClaims, approveExpenseClaim, createTravelRequest, getMyTravelRequests, approveTravelRequest,
+  // Training Calendar
+  createTrainingSession, listTrainingSessions, registerForTraining, markTrainingAttendance, getTrainingAttendance, getMyTrainingRegistrations,
+  // Employee Engagement
+  createEngagementSurvey, listEngagementSurveys, submitEngagementResponse, getEngagementResults,
+  // Separation / Exit
+  createExitInterview, completeExitInterview, getExitInterviews, createExitClearance, getExitClearance, updateExitClearance,
+  // Custom Reports
+  generateCustomReport,
   // Email notifications
   sendBirthdayReminders, checkProbationReviews,
   // Permissions

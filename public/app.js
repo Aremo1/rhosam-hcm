@@ -211,8 +211,14 @@ const MENU_ITEMS = {
     { route: 'payroll', icon: 'fas fa-money-check-alt', label: 'Payroll' },
     { route: 'goals', icon: 'fas fa-bullseye', label: 'Goals & Appraisals' },
     { route: 'learning', icon: 'fas fa-graduation-cap', label: 'Learning' },
+    { route: 'training', icon: 'fas fa-calendar-check', label: 'Training Calendar' },
     { route: 'recruitment', icon: 'fas fa-user-plus', label: 'Recruitment' },
     { route: 'assessments', icon: 'fas fa-clipboard-check', label: 'Assessments' },
+    { route: 'assets', icon: 'fas fa-laptop', label: 'Asset Management' },
+    { route: 'travel', icon: 'fas fa-plane-departure', label: 'Travel & Expense' },
+    { route: 'engagement', icon: 'fas fa-heart', label: 'Engagement' },
+    { route: 'exit', icon: 'fas fa-door-open', label: 'Exit Management' },
+    { route: 'customreports', icon: 'fas fa-file-alt', label: 'Custom Reports' },
     { route: 'orgchart', icon: 'fas fa-sitemap', label: 'Org Chart' },
     { route: 'reports', icon: 'fas fa-chart-bar', label: 'Reports' },
     { route: 'settings', icon: 'fas fa-cog', label: 'Settings' },
@@ -226,6 +232,12 @@ const MENU_ITEMS = {
     { route: 'payroll', icon: 'fas fa-money-check-alt', label: 'Payroll' },
     { route: 'goals', icon: 'fas fa-bullseye', label: 'Goals & Appraisals' },
     { route: 'learning', icon: 'fas fa-graduation-cap', label: 'Learning' },
+    { route: 'training', icon: 'fas fa-calendar-check', label: 'Training Calendar' },
+    { route: 'assets', icon: 'fas fa-laptop', label: 'Asset Management' },
+    { route: 'travel', icon: 'fas fa-plane-departure', label: 'Travel & Expense' },
+    { route: 'engagement', icon: 'fas fa-heart', label: 'Engagement' },
+    { route: 'exit', icon: 'fas fa-door-open', label: 'Exit Management' },
+    { route: 'customreports', icon: 'fas fa-file-alt', label: 'Custom Reports' },
     { route: 'orgchart', icon: 'fas fa-sitemap', label: 'Org Chart' },
     { route: 'reports', icon: 'fas fa-chart-bar', label: 'Reports' },
   ],
@@ -280,6 +292,10 @@ const MENU_ITEMS = {
     { route: 'leave', icon: 'fas fa-calendar-alt', label: 'Leave' },
     { route: 'goals', icon: 'fas fa-bullseye', label: 'My Goals' },
     { route: 'learning', icon: 'fas fa-graduation-cap', label: 'Learning' },
+    { route: 'training', icon: 'fas fa-calendar-check', label: 'Training' },
+    { route: 'assets', icon: 'fas fa-laptop', label: 'My Assets' },
+    { route: 'travel', icon: 'fas fa-plane-departure', label: 'Travel & Expense' },
+    { route: 'engagement', icon: 'fas fa-heart', label: 'Engagement' },
     { route: 'payslips', icon: 'fas fa-file-invoice-dollar', label: 'My Payslips' },
   ],
 };
@@ -319,12 +335,18 @@ function navigateTo(route) {
     payroll: 'Payroll',
     goals: 'Goals & Appraisals',
     learning: 'Learning & Development',
+    training: 'Training Calendar',
     recruitment: 'Recruitment',
+    assessments: 'Assessments',
+    assets: 'Asset Management',
+    travel: 'Travel & Expense',
+    engagement: 'Employee Engagement',
+    exit: 'Exit Management',
+    customreports: 'Custom Reports',
     orgchart: 'Org Chart',
     reports: 'Reports',
     settings: 'Settings',
     payslips: 'My Payslips',
-    assessments: 'Assessments',
     usermgmt: 'User Management',
   };
   document.getElementById('pageTitle').textContent = titles[route] || 'Dashboard';
@@ -360,6 +382,12 @@ async function loadRoute(route) {
       case 'settings': await loadSettings(); break;
       case 'payslips': await loadPayslips(); break;
       case 'assessments': await loadAssessments(); break;
+      case 'training': await loadTraining(); break;
+      case 'assets': await loadAssets(); break;
+      case 'travel': await loadTravelExpense(); break;
+      case 'engagement': await loadEngagement(); break;
+      case 'exit': await loadExitManagement(); break;
+      case 'customreports': await loadCustomReports(); break;
       case 'usermgmt': await loadUserManagement(); break;
       default: content.innerHTML = '<p>Page not found</p>';
     }
@@ -3712,6 +3740,383 @@ async function changeUserRole(email, newRole) {
     showToast(err.message, 'error');
     loadUserManagement();
   }
+}
+
+// ===== ASSET MANAGEMENT =====
+async function loadAssets() {
+  const content = document.getElementById('contentArea');
+  const [assetsData, myAssets] = await Promise.all([
+    call('listAssets', STATE.token),
+    call('getMyAssets', STATE.token)
+  ]);
+  const assets = assetsData.assets || [];
+  const role = STATE.user?.role;
+  const isAdmin = ['Admin', 'HRBP'].includes(role);
+  
+  content.innerHTML = `
+    <div class="tabs" style="margin-bottom:24px;">
+      ${isAdmin ? '<button class="tab active" onclick="loadAssetTab(\'all\', this)">All Assets</button>' : ''}
+      <button class="tab ${!isAdmin ? 'active' : ''}" onclick="loadAssetTab(\'mine\', this)">My Assets</button>
+    </div>
+    <div id="assetContent"></div>
+  `;
+  loadAssetTab(isAdmin ? 'all' : 'mine', document.querySelector('.tab.active'));
+}
+
+async function loadAssetTab(tab, btn) {
+  document.querySelectorAll('.tabs .tab').forEach(t => t.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  const container = document.getElementById('assetContent');
+  
+  if (tab === 'all') {
+    const data = await call('listAssets', STATE.token);
+    const assets = data.assets || [];
+    const emp = (await call('listEmployees', STATE.token)).employees || [];
+    const empMap = {}; emp.forEach(e => { empMap[e.EmployeeID] = e; });
+    
+    container.innerHTML = `
+      <div class="card mb-3"><div class="card-header"><h3>Register New Asset</h3></div><div class="card-body">
+        <form id="addAssetForm" class="employee-form">
+          <div class="form-group"><label>Asset Name</label><input type="text" name="AssetName" required></div>
+          <div class="form-group"><label>Asset Tag</label><input type="text" name="AssetTag" placeholder="e.g. IT-LAP-001"></div>
+          <div class="form-group"><label>Category</label><select name="Category"><option value="Laptop">Laptop</option><option value="Desktop">Desktop</option><option value="Phone">Phone</option><option value="Monitor">Monitor</option><option value="Printer">Printer</option><option value="Furniture">Furniture</option><option value="Vehicle">Vehicle</option><option value="Other">Other</option></select></div>
+          <div class="form-group"><label>Serial Number</label><input type="text" name="SerialNumber"></div>
+          <div class="form-group"><label>Purchase Date</label><input type="date" name="PurchaseDate"></div>
+          <div class="form-group"><label>Purchase Cost (₦)</label><input type="number" name="PurchaseCost" min="0"></div>
+          <div class="form-group"><label>Condition</label><select name="Condition"><option value="New">New</option><option value="Good">Good</option><option value="Fair">Fair</option><option value="Poor">Poor</option></select></div>
+          <div style="grid-column:1/-1;display:flex;gap:12px;justify-content:flex-end;"><button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Register</button></div>
+        </form>
+      </div></div>
+      
+      <div class="card"><div class="card-header"><h3>All Assets (${assets.length})</h3></div><div class="card-body"><div class="table-container">
+        <table><thead><tr><th>Tag</th><th>Name</th><th>Category</th><th>Status</th><th>Assigned To</th><th>Condition</th><th>Actions</th></tr></thead><tbody>
+        ${assets.map(a => {
+          const e = empMap[a.AssignedTo] || {};
+          return `<tr><td>${a.AssetTag || ''}</td><td>${a.AssetName || ''}</td><td>${a.Category || ''}</td><td><span class="pill ${a.Status === 'Assigned' ? 'pill-warning' : a.Status === 'Available' ? 'pill-success' : 'pill-info'}">${a.Status || ''}</span></td><td>${a.AssignedTo ? (e.FirstName || '') + ' ' + (e.LastName || '') : '-'}</td><td>${a.Condition || ''}</td><td>${a.Status === 'Available' ? `<button class="btn btn-sm btn-outline" onclick="showAssignAsset('${a.AssetID}')"><i class="fas fa-link"></i> Assign</button>` : a.Status === 'Assigned' ? `<button class="btn btn-sm btn-outline" onclick="showReturnAsset('${a.AssetID}')"><i class="fas fa-undo"></i> Return</button>` : ''}</td></tr>`;
+        }).join('')}
+        </tbody></table>
+      </div></div></div>
+    `;
+    document.getElementById('addAssetForm').addEventListener('submit', async (e) => {
+      e.preventDefault(); const p = Object.fromEntries(new FormData(e.target));
+      const d = await call('createAsset', STATE.token, p);
+      if (!d.ok) return showToast(d.error, 'error'); showToast('Asset registered', 'success'); loadAssetTab('all', btn);
+    });
+  } else {
+    const data = await call('getMyAssets', STATE.token);
+    container.innerHTML = `
+      <div class="card"><div class="card-header"><h3>My Assigned Assets (${(data || []).length})</h3></div><div class="card-body"><div class="table-container">
+        <table><thead><tr><th>Tag</th><th>Name</th><th>Category</th><th>Condition</th></tr></thead><tbody>
+        ${(data || []).map(a => `<tr><td>${a.AssetTag || ''}</td><td>${a.AssetName || ''}</td><td>${a.Category || ''}</td><td>${a.Condition || ''}</td></tr>`).join('')}
+        ${(data || []).length === 0 ? '<tr><td colspan="4" style="text-align:center;color:var(--gray-500);">No assets assigned</td></tr>' : ''}
+        </tbody></table>
+      </div></div></div>
+    `;
+  }
+}
+
+async function showAssignAsset(assetId) {
+  const emps = (await call('listEmployees', STATE.token)).employees || [];
+  showModal('Assign Asset', `<form id="assignAssetForm" class="employee-form">
+    <div class="form-group"><label>Assign to Employee</label><select name="employeeId" required><option value="">Select</option>${emps.filter(e => (e.EmploymentStatus || e.Status) === 'Active').map(e => `<option value="${e.EmployeeID}">${e.FirstName} ${e.LastName}</option>`).join('')}</select></div>
+    <div class="form-group"><label>Notes</label><textarea name="notes" rows="2"></textarea></div>
+    <div style="grid-column:1/-1;display:flex;gap:12px;justify-content:flex-end;"><button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button><button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Assign</button></div>
+  </form>`);
+  document.getElementById('assignAssetForm').addEventListener('submit', async (e) => {
+    e.preventDefault(); const p = Object.fromEntries(new FormData(e.target));
+    const d = await call('assignAsset', STATE.token, assetId, p.employeeId, p.notes);
+    if (!d.ok) return showToast(d.error, 'error'); showToast('Asset assigned', 'success'); closeModal(); loadAssetTab('all', document.querySelector('.tab.active'));
+  });
+}
+
+async function showReturnAsset(assetId) {
+  showModal('Return Asset', `<form id="returnAssetForm" class="employee-form">
+    <div class="form-group"><label>Condition</label><select name="condition"><option value="Good">Good</option><option value="Fair">Fair</option><option value="Poor">Poor</option><option value="Damaged">Damaged</option></select></div>
+    <div class="form-group"><label>Notes</label><textarea name="notes" rows="2"></textarea></div>
+    <div style="grid-column:1/-1;display:flex;gap:12px;justify-content:flex-end;"><button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button><button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Return</button></div>
+  </form>`);
+  document.getElementById('returnAssetForm').addEventListener('submit', async (e) => {
+    e.preventDefault(); const p = Object.fromEntries(new FormData(e.target));
+    const d = await call('returnAsset', STATE.token, assetId, p.condition, p.notes);
+    if (!d.ok) return showToast(d.error, 'error'); showToast('Asset returned', 'success'); closeModal(); loadAssetTab('all', document.querySelector('.tab.active'));
+  });
+}
+
+// ===== TRAVEL & EXPENSE =====
+async function loadTravelExpense() {
+  const content = document.getElementById('contentArea');
+  content.innerHTML = `
+    <div class="tabs" style="margin-bottom:24px;">
+      <button class="tab active" onclick="loadTravelTab(\'expense\', this)">Expense Claims</button>
+      <button class="tab" onclick="loadTravelTab(\'travel\', this)">Travel Requests</button>
+    </div>
+    <div id="travelContent"></div>
+  `;
+  loadTravelTab('expense', document.querySelector('.tab.active'));
+}
+
+async function loadTravelTab(tab, btn) {
+  document.querySelectorAll('.tabs .tab').forEach(t => t.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  const container = document.getElementById('travelContent');
+  const role = STATE.user?.role;
+  
+  if (tab === 'expense') {
+    const claims = await call('getMyExpenseClaims', STATE.token);
+    container.innerHTML = `
+      <div class="card mb-3"><div class="card-header"><h3>Submit Expense Claim</h3></div><div class="card-body">
+        <form id="expenseForm" class="employee-form">
+          <div class="form-group"><label>Period</label><input type="text" name="Period" placeholder="2026-08" required></div>
+          <div class="form-group"><label>Total Amount (₦)</label><input type="number" name="TotalAmount" min="0" required></div>
+          <div class="form-group"><label>Notes</label><textarea name="Notes" rows="2"></textarea></div>
+          <div style="grid-column:1/-1;"><button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane"></i> Submit Claim</button></div>
+        </form>
+      </div></div>
+      <div class="card"><div class="card-header"><h3>Expense Claims</h3></div><div class="card-body"><div class="table-container">
+        <table><thead><tr><th>Period</th><th>Amount</th><th>Status</th><th>Date</th></tr></thead><tbody>
+        ${(claims || []).map(c => `<tr><td>${c.Period || ''}</td><td>₦${Number(c.TotalAmount || 0).toLocaleString()}</td><td><span class="pill ${c.Status === 'Approved' ? 'pill-success' : c.Status === 'Rejected' ? 'pill-danger' : 'pill-warning'}">${c.Status || ''}</span></td><td>${c.CreatedAt ? new Date(c.CreatedAt).toLocaleDateString() : ''}</td></tr>`).join('')}
+        ${(claims || []).length === 0 ? '<tr><td colspan="4" style="text-align:center;color:var(--gray-500);">No expense claims</td></tr>' : ''}
+        </tbody></table>
+      </div></div></div>
+    `;
+    document.getElementById('expenseForm').addEventListener('submit', async (e) => {
+      e.preventDefault(); const p = Object.fromEntries(new FormData(e.target)); p.Items = [];
+      const d = await call('createExpenseClaim', STATE.token, p);
+      if (!d.ok) return showToast(d.error, 'error'); showToast('Expense claim submitted', 'success'); loadTravelTab('expense', btn);
+    });
+  } else {
+    const requests = await call('getMyTravelRequests', STATE.token);
+    container.innerHTML = `
+      <div class="card mb-3"><div class="card-header"><h3>Submit Travel Request</h3></div><div class="card-body">
+        <form id="travelForm" class="employee-form">
+          <div class="form-group"><label>Destination</label><input type="text" name="Destination" required></div>
+          <div class="form-group"><label>Purpose</label><input type="text" name="Purpose" required></div>
+          <div class="form-group"><label>Depart Date</label><input type="date" name="DepartDate" required></div>
+          <div class="form-group"><label>Return Date</label><input type="date" name="ReturnDate" required></div>
+          <div class="form-group"><label>Estimated Cost (₦)</label><input type="number" name="EstimatedCost" min="0"></div>
+          <div style="grid-column:1/-1;"><button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane"></i> Submit Request</button></div>
+        </form>
+      </div></div>
+      <div class="card"><div class="card-header"><h3>Travel Requests</h3></div><div class="card-body"><div class="table-container">
+        <table><thead><tr><th>Destination</th><th>Purpose</th><th>Depart</th><th>Return</th><th>Cost</th><th>Status</th></tr></thead><tbody>
+        ${(requests || []).map(r => `<tr><td>${r.Destination || ''}</td><td>${r.Purpose || ''}</td><td>${r.DepartDate || ''}</td><td>${r.ReturnDate || ''}</td><td>₦${Number(r.EstimatedCost || 0).toLocaleString()}</td><td><span class="pill ${r.Status === 'Approved' ? 'pill-success' : r.Status === 'Rejected' ? 'pill-danger' : 'pill-warning'}">${r.Status || ''}</span></td></tr>`).join('')}
+        ${(requests || []).length === 0 ? '<tr><td colspan="6" style="text-align:center;color:var(--gray-500);">No travel requests</td></tr>' : ''}
+        </tbody></table>
+      </div></div></div>
+    `;
+    document.getElementById('travelForm').addEventListener('submit', async (e) => {
+      e.preventDefault(); const p = Object.fromEntries(new FormData(e.target));
+      const d = await call('createTravelRequest', STATE.token, p);
+      if (!d.ok) return showToast(d.error, 'error'); showToast('Travel request submitted', 'success'); loadTravelTab('travel', btn);
+    });
+  }
+}
+
+// ===== TRAINING CALENDAR =====
+async function loadTraining() {
+  const content = document.getElementById('contentArea');
+  const role = STATE.user?.role;
+  const isAdmin = ['Admin', 'HRBP', 'Learning Manager'].includes(role);
+  
+  const [sessionsData, myReg] = await Promise.all([
+    call('listTrainingSessions', STATE.token),
+    call('getMyTrainingRegistrations', STATE.token)
+  ]);
+  const sessions = sessionsData.sessions || [];
+  
+  content.innerHTML = `
+    ${isAdmin ? `
+    <div class="card mb-3"><div class="card-header"><h3>Create Training Session</h3></div><div class="card-body">
+      <form id="trainingForm" class="employee-form">
+        <div class="form-group"><label>Title</label><input type="text" name="Title" required></div>
+        <div class="form-group"><label>Trainer</label><input type="text" name="Trainer"></div>
+        <div class="form-group"><label>Location</label><input type="text" name="Location"></div>
+        <div class="form-group"><label>Start Date</label><input type="date" name="StartDate" required></div>
+        <div class="form-group"><label>End Date</label><input type="date" name="EndDate"></div>
+        <div class="form-group"><label>Max Participants</label><input type="number" name="MaxParticipants" min="0"></div>
+        <div style="grid-column:1/-1;"><button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Create Session</button></div>
+      </form>
+    </div></div>
+    ` : ''}
+    
+    <div class="card"><div class="card-header"><h3>Upcoming Training Sessions</h3></div><div class="card-body"><div class="table-container">
+      <table><thead><tr><th>Title</th><th>Trainer</th><th>Location</th><th>Start</th><th>End</th><th>Status</th><th>Action</th></tr></thead><tbody>
+      ${sessions.map(s => `<tr><td>${s.Title || ''}</td><td>${s.Trainer || ''}</td><td>${s.Location || ''}</td><td>${s.StartDate || ''}</td><td>${s.EndDate || ''}</td><td><span class="pill ${s.Status === 'Completed' ? 'pill-success' : 'pill-warning'}">${s.Status || ''}</span></td><td>${s.Status === 'Scheduled' ? `<button class="btn btn-sm btn-outline" onclick="registerTraining('${s.SessionID}')"><i class="fas fa-sign-in-alt"></i> Register</button>` : ''}</td></tr>`).join('')}
+      ${sessions.length === 0 ? '<tr><td colspan="7" style="text-align:center;color:var(--gray-500);">No training sessions</td></tr>' : ''}
+      </tbody></table>
+    </div></div></div>
+  `;
+  
+  if (isAdmin) {
+    document.getElementById('trainingForm').addEventListener('submit', async (e) => {
+      e.preventDefault(); const p = Object.fromEntries(new FormData(e.target));
+      const d = await call('createTrainingSession', STATE.token, p);
+      if (!d.ok) return showToast(d.error, 'error'); showToast('Training session created', 'success'); loadTraining();
+    });
+  }
+}
+
+async function registerTraining(sessionId) {
+  const d = await call('registerForTraining', STATE.token, sessionId);
+  if (!d.ok) return showToast(d.error, 'error'); showToast('Registered for training', 'success'); loadTraining();
+}
+
+// ===== EMPLOYEE ENGAGEMENT =====
+async function loadEngagement() {
+  const content = document.getElementById('contentArea');
+  const role = STATE.user?.role;
+  const isAdmin = ['Admin', 'HRBP', 'Performance Manager'].includes(role);
+  
+  const data = await call('listEngagementSurveys', STATE.token);
+  const surveys = data.surveys || [];
+  
+  content.innerHTML = `
+    ${isAdmin ? `
+    <div class="card mb-3"><div class="card-header"><h3>Create Survey</h3></div><div class="card-body">
+      <form id="surveyForm" class="employee-form">
+        <div class="form-group"><label>Title</label><input type="text" name="Title" required></div>
+        <div class="form-group"><label>Description</label><textarea name="Description" rows="2"></textarea></div>
+        <div class="form-group"><label>Start Date</label><input type="date" name="StartDate"></div>
+        <div class="form-group"><label>End Date</label><input type="date" name="EndDate"></div>
+        <div style="grid-column:1/-1;"><button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Create Survey</button></div>
+      </form>
+    </div></div>
+    ` : ''}
+    
+    <div class="card"><div class="card-header"><h3>Engagement Surveys</h3></div><div class="card-body"><div class="table-container">
+      <table><thead><tr><th>Title</th><th>Description</th><th>Start</th><th>End</th><th>Status</th><th>Action</th></tr></thead><tbody>
+      ${surveys.map(s => `<tr><td>${s.Title || ''}</td><td>${s.Description || ''}</td><td>${s.StartDate || ''}</td><td>${s.EndDate || ''}</td><td><span class="pill ${s.Status === 'Active' ? 'pill-success' : 'pill-info'}">${s.Status || ''}</span></td><td>${s.Status === 'Active' ? `<button class="btn btn-sm btn-outline" onclick="showSurveyResponse('${s.SurveyID}')"><i class="fas fa-edit"></i> Respond</button>` : ''}</td></tr>`).join('')}
+      ${surveys.length === 0 ? '<tr><td colspan="6" style="text-align:center;color:var(--gray-500);">No surveys available</td></tr>' : ''}
+      </tbody></table>
+    </div></div></div>
+  `;
+  
+  if (isAdmin) {
+    document.getElementById('surveyForm').addEventListener('submit', async (e) => {
+      e.preventDefault(); const p = Object.fromEntries(new FormData(e.target)); p.Questions = ['How satisfied are you with your role?', 'How would you rate work-life balance?', 'Do you feel valued at work?'];
+      const d = await call('createEngagementSurvey', STATE.token, p);
+      if (!d.ok) return showToast(d.error, 'error'); showToast('Survey created', 'success'); loadEngagement();
+    });
+  }
+}
+
+async function showSurveyResponse(surveyId) {
+  showModal('Respond to Survey', `<form id="surveyRespForm" class="employee-form">
+    <div class="form-group"><label>How satisfied are you with your role?</label><select name="q1"><option value="5">Very Satisfied</option><option value="4">Satisfied</option><option value="3">Neutral</option><option value="2">Dissatisfied</option><option value="1">Very Dissatisfied</option></select></div>
+    <div class="form-group"><label>How would you rate work-life balance?</label><select name="q2"><option value="5">Excellent</option><option value="4">Good</option><option value="3">Average</option><option value="2">Poor</option><option value="1">Very Poor</option></select></div>
+    <div class="form-group"><label>Do you feel valued at work?</label><select name="q3"><option value="5">Strongly Agree</option><option value="4">Agree</option><option value="3">Neutral</option><option value="2">Disagree</option><option value="1">Strongly Disagree</option></select></div>
+    <div style="grid-column:1/-1;display:flex;gap:12px;justify-content:flex-end;"><button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button><button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane"></i> Submit</button></div>
+  </form>`);
+  document.getElementById('surveyRespForm').addEventListener('submit', async (e) => {
+    e.preventDefault(); const p = Object.fromEntries(new FormData(e.target));
+    const d = await call('submitEngagementResponse', STATE.token, surveyId, p);
+    if (!d.ok) return showToast(d.error, 'error'); showToast('Response submitted', 'success'); closeModal();
+  });
+}
+
+// ===== EXIT MANAGEMENT =====
+async function loadExitManagement() {
+  const content = document.getElementById('contentArea');
+  const role = STATE.user?.role;
+  const isAdmin = ['Admin', 'HRBP'].includes(role);
+  
+  const [interviewsData, employeesData] = await Promise.all([
+    call('getExitInterviews', STATE.token),
+    isAdmin ? call('listEmployees', STATE.token) : Promise.resolve({ employees: [] })
+  ]);
+  const interviews = interviewsData || [];
+  const emps = (employeesData.employees || []).filter(e => (e.EmploymentStatus || e.Status) === 'Active');
+  
+  content.innerHTML = `
+    ${isAdmin ? `
+    <div class="card mb-3"><div class="card-header"><h3>Initiate Exit Process</h3></div><div class="card-body">
+      <form id="exitForm" class="employee-form">
+        <div class="form-group"><label>Employee</label><select name="EmployeeID" required><option value="">Select</option>${emps.map(e => `<option value="${e.EmployeeID}">${e.FirstName} ${e.LastName}</option>`).join('')}</select></div>
+        <div style="grid-column:1/-1;display:flex;gap:12px;justify-content:flex-end;">
+          <button type="button" class="btn btn-outline" onclick="createExitClearanceAction()"><i class="fas fa-clipboard-list"></i> Create Clearance Checklist</button>
+          <button type="submit" class="btn btn-primary"><i class="fas fa-door-open"></i> Start Exit Interview</button>
+        </div>
+      </form>
+    </div></div>
+    ` : ''}
+    
+    <div class="card"><div class="card-header"><h3>Exit Interviews</h3></div><div class="card-body"><div class="table-container">
+      <table><thead><tr><th>Employee</th><th>Status</th><th>Rating</th><th>Date</th></tr></thead><tbody>
+      ${interviews.map(i => `<tr><td>${i.EmployeeName || ''}</td><td><span class="pill ${i.Status === 'Completed' ? 'pill-success' : 'pill-warning'}">${i.Status || ''}</span></td><td>${i.OverallRating || '-'}</td><td>${i.CompletedAt ? new Date(i.CompletedAt).toLocaleDateString() : '-'}</td></tr>`).join('')}
+      ${interviews.length === 0 ? '<tr><td colspan="4" style="text-align:center;color:var(--gray-500);">No exit interviews</td></tr>' : ''}
+      </tbody></table>
+    </div></div></div>
+  `;
+  
+  if (isAdmin) {
+    document.getElementById('exitForm').addEventListener('submit', async (e) => {
+      e.preventDefault(); const p = Object.fromEntries(new FormData(e.target));
+      p.Questions = ['Why are you leaving?', 'What did you enjoy most?', 'What could be improved?', 'Would you recommend us?'];
+      const d = await call('createExitInterview', STATE.token, p);
+      if (!d.ok) return showToast(d.error, 'error'); showToast('Exit interview created', 'success'); loadExitManagement();
+    });
+  }
+}
+
+async function createExitClearanceAction() {
+  const emps = (await call('listEmployees', STATE.token)).employees || [];
+  showModal('Create Exit Clearance', `<form id="clearanceForm" class="employee-form">
+    <div class="form-group"><label>Employee</label><select name="employeeId" required><option value="">Select</option>${emps.map(e => `<option value="${e.EmployeeID}">${e.FirstName} ${e.LastName}</option>`).join('')}</select></div>
+    <div style="grid-column:1/-1;display:flex;gap:12px;justify-content:flex-end;"><button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button><button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Create</button></div>
+  </form>`);
+  document.getElementById('clearanceForm').addEventListener('submit', async (e) => {
+    e.preventDefault(); const p = Object.fromEntries(new FormData(e.target));
+    const d = await call('createExitClearance', STATE.token, p.employeeId);
+    if (!d.ok) return showToast(d.error, 'error'); showToast('Clearance checklist created', 'success'); closeModal();
+  });
+}
+
+// ===== CUSTOM REPORTS =====
+async function loadCustomReports() {
+  const content = document.getElementById('contentArea');
+  const dropdowns = await call('getDropdownConfig', STATE.token);
+  
+  content.innerHTML = `
+    <div class="card mb-3"><div class="card-header"><h3>Custom Employee Report</h3></div><div class="card-body">
+      <form id="customReportForm" class="employee-form">
+        <div class="form-group"><label>Department</label><select name="department"><option value="">All</option>${(dropdowns.departments || []).map(d => `<option value="${d}">${d}</option>`).join('')}</select></div>
+        <div class="form-group"><label>Location</label><select name="location"><option value="">All</option>${(dropdowns.locations || []).map(l => `<option value="${l}">${l}</option>`).join('')}</select></div>
+        <div class="form-group"><label>Job Level</label><select name="jobLevel"><option value="">All</option>${(dropdowns.jobLevels || []).map(l => `<option value="${l}">${l}</option>`).join('')}</select></div>
+        <div class="form-group"><label>Grade</label><select name="grade"><option value="">All</option>${(dropdowns.grades || []).map(g => `<option value="${g}">${g}</option>`).join('')}</select></div>
+        <div class="form-group"><label>Gender</label><select name="gender"><option value="">All</option><option value="Male">Male</option><option value="Female">Female</option></select></div>
+        <div class="form-group"><label>Status</label><select name="status"><option value="">All</option><option value="Active">Active</option><option value="Terminated">Terminated</option><option value="On Leave">On Leave</option><option value="Probation">Probation</option></select></div>
+        <div style="grid-column:1/-1;display:flex;gap:12px;justify-content:flex-end;"><button type="submit" class="btn btn-primary"><i class="fas fa-search"></i> Generate Report</button></div>
+      </form>
+    </div></div>
+    <div id="customReportResults"></div>
+  `;
+  
+  document.getElementById('customReportForm').addEventListener('submit', async (e) => {
+    e.preventDefault(); const p = Object.fromEntries(new FormData(e.target));
+    const data = await call('generateCustomReport', STATE.token, p);
+    if (!data.ok) return showToast(data.error, 'error');
+    const results = document.getElementById('customReportResults');
+    results.innerHTML = `
+      <div class="card"><div class="card-header"><h3>Results (${data.totalRows} employees)</h3><button class="btn btn-sm btn-outline" onclick="downloadCustomReportCSV()"><i class="fas fa-download"></i> Export CSV</button></div><div class="card-body"><div class="table-container">
+        <table><thead><tr>${(data.columns || []).map(c => `<th>${c}</th>`).join('')}</tr></thead><tbody>
+        ${(data.rows || []).map(r => `<tr>${(data.columns || []).map(c => `<td>${r[c] || ''}</td>`).join('')}</tr>`).join('')}
+        ${(data.rows || []).length === 0 ? `<tr><td colspan="${(data.columns || []).length}" style="text-align:center;color:var(--gray-500);">No results</td></tr>` : ''}
+        </tbody></table>
+      </div></div></div>
+    `;
+    window._customReportData = data;
+  });
+}
+
+function downloadCustomReportCSV() {
+  const data = window._customReportData;
+  if (!data || !data.rows || !data.columns) return;
+  let csv = data.columns.join(',') + '\n';
+  data.rows.forEach(r => { csv += data.columns.map(c => `"${String(r[c] || '').replace(/"/g, '""')}"`).join(',') + '\n'; });
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = 'custom_report.csv'; a.click();
+  URL.revokeObjectURL(url);
 }
 
 // ===== Init =====
