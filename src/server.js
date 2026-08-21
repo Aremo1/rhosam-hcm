@@ -1,12 +1,14 @@
 /**
  * RHoSAM HCM — Express Server (Node.js)
- * Async dispatch, file uploads, proper error handling.
+ * Async dispatch, file uploads, monitoring, backup, email notifications.
  */
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const multer = require('multer');
+const monitoring = require('./monitoring');
+const backup = require('./backup');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -54,7 +56,7 @@ const NO_TOKEN = new Set([
   'getNotificationCategories', 'dashboardForRole', 'getPermissions'
 ]);
 
-// API dispatch — async
+// API dispatch — async (with monitoring)
 app.post('/api/:fn', async (req, res) => {
   const fn = req.params.fn;
   const start = Date.now();
@@ -71,7 +73,6 @@ app.post('/api/:fn', async (req, res) => {
     if (!token) {
       return res.status(401).json({ error: 'Authentication required' });
     }
-    // Inject token as first arg if not present
     if (args.length === 0 || args[0] !== token) {
       args.unshift(token);
     }
@@ -80,10 +81,13 @@ app.post('/api/:fn', async (req, res) => {
   try {
     const result = await allFunctions[fn](...args);
     const ms = Date.now() - start;
+    monitoring.trackApiCall(fn, ms, true);
     console.log(`[api] ${fn} -> ${ms}ms`);
     res.json(result);
   } catch (err) {
     const ms = Date.now() - start;
+    monitoring.trackApiCall(fn, ms, false);
+    monitoring.trackError(`api:${fn}`, err);
     console.error(`[api] ${fn} ERROR (${ms}ms):`, err.message);
     res.status(500).json({ error: err.message });
   }
@@ -92,6 +96,171 @@ app.post('/api/:fn', async (req, res) => {
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Enhanced health check with monitoring
+app.get('/api/monitoring/health', async (req, res) => {
+  try {
+    const health = await monitoring.checkHealth();
+    res.json(health);
+  } catch (err) {
+    res.status(500).json({ status: 'error', error: err.message });
+  }
+});
+
+// Detailed metrics (Admin only)
+app.get('/api/monitoring/metrics', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    if (!token) return res.status(401).json({ error: 'Unauthorized' });
+    const session = await core.getSession(token);
+    if (!session || !['Admin', 'HRBP'].includes(session.role)) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+    const metrics = monitoring.getMetrics();
+    res.json(metrics);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Uptime check (public)
+app.get('/api/monitoring/uptime', async (req, res) => {
+  try {
+    const uptime = await monitoring.checkUptime();
+    res.json(uptime);
+  } catch (err) {
+    res.status(500).json({ status: 'down', error: err.message });
+  }
+});
+
+// Backup endpoints (Admin only)
+app.get('/api/backup/list', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    if (!token) return res.status(401).json({ error: 'Unauthorized' });
+    const session = await core.getSession(token);
+    if (!session || !['Admin'].includes(session.role)) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+    const backups = backup.listBackups();
+    res.json({ ok: true, backups });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/backup/stats', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    if (!token) return res.status(401).json({ error: 'Unauthorized' });
+    const session = await core.getSession(token);
+    if (!session || !['Admin'].includes(session.role)) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+    const stats = await backup.getBackupStats();
+    res.json({ ok: true, ...stats });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/backup/create', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    if (!token) return res.status(401).json({ error: 'Unauthorized' });
+    const session = await core.getSession(token);
+    if (!session || !['Admin'].includes(session.role)) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+    const type = req.body.type || 'full';
+    let result;
+    if (type === 'quick') {
+      result = await backup.createQuickBackup();
+    } else {
+      result = await backup.createFullBackup();
+    }
+    await core.auditAsync('BACKUP_CREATED', session.email, { type, result: result.summary || result.tables });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/backup/cleanup', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    if (!token) return res.status(401).json({ error: 'Unauthorized' });
+    const session = await core.getSession(token);
+    if (!session || !['Admin'].includes(session.role)) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+    const result = backup.cleanupOldBackups(req.body.keepCount || 7);
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Cron: Automated backup (daily)
+app.get('/cron/backup', async (req, res) => {
+  try {
+    // Verify cron secret
+    const secret = req.headers['x-cron-secret'] || req.query.secret;
+    if (secret !== process.env.CRON_SECRET) {
+      return res.status(403).json({ error: 'Invalid cron secret' });
+    }
+    const result = await backup.createQuickBackup();
+    backup.cleanupOldBackups(7);
+    await core.auditAsync('AUTO_BACKUP', 'SYSTEM', { result: result.tables });
+    res.json({ ok: true, backup: result });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Cron: Send email digest
+app.get('/cron/email-digest', async (req, res) => {
+  try {
+    const secret = req.headers['x-cron-secret'] || req.query.secret;
+    if (secret !== process.env.CRON_SECRET) {
+      return res.status(403).json({ error: 'Invalid cron secret' });
+    }
+    const { sendBulkEmails } = require('./email');
+    const users = await core._readRowsAsync(require('./config').SHEETS.USERS);
+    const employees = await core._readRowsAsync(require('./config').SHEETS.EMP);
+    
+    // Send birthday emails
+    const today = new Date();
+    const birthdayEmployees = employees.filter(e => {
+      if (!e.DOB) return false;
+      const dob = new Date(e.DOB);
+      return dob.getDate() === today.getDate() && dob.getMonth() === today.getMonth();
+    });
+    
+    let sent = 0;
+    for (const emp of birthdayEmployees) {
+      const user = users.find(u => u.EmployeeID === emp.EmployeeID);
+      if (user && user.Email) {
+        await sendBulkEmails([{ email: user.Email, name: `${emp.FirstName} ${emp.LastName}` }], 'birthday', { name: `${emp.FirstName} ${emp.LastName}` });
+        sent++;
+      }
+    }
+    
+    res.json({ ok: true, birthdayEmails: sent });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Cron: Monitoring health check
+app.get('/cron/health', async (req, res) => {
+  try {
+    const health = await monitoring.checkHealth();
+    res.json(health);
+  } catch (err) {
+    res.status(500).json({ status: 'error', error: err.message });
+  }
 });
 
 // Profile picture upload (self)
