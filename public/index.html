@@ -124,9 +124,12 @@
           <h2 id="pageTitle">Dashboard</h2>
         </div>
         <div class="top-bar-actions">
-          <div class="search-box">
+          <div class="search-box" onclick="toggleGlobalSearch()" style="cursor:pointer;">
             <i class="fas fa-search"></i>
-            <input type="text" id="globalSearch" placeholder="Search...">
+            <span style="font-size:13px;color:var(--gray-500);">Search... <kbd style="background:var(--gray-200);padding:1px 5px;border-radius:3px;font-size:11px;">Ctrl+K</kbd></span>
+          </div>
+          <div id="darkModeToggle" class="notifications" onclick="toggleDarkMode()" style="cursor:pointer;">
+            <i class="fas fa-moon"></i>
           </div>
           <div class="notifications" onclick="showNotifications()">
             <i class="fas fa-bell"></i>
@@ -156,6 +159,32 @@
         <!-- Dynamic modal content -->
       </div>
     </div>
+  </div>
+
+  <!-- Global Search Overlay (Ctrl+K) -->
+  <div id="globalSearchOverlay" class="global-search-overlay" style="display:none;">
+    <div class="global-search-modal">
+      <div class="global-search-header">
+        <i class="fas fa-search" style="color:var(--gray-400);"></i>
+        <input type="text" id="globalSearchInput" placeholder="Search employees, pages, courses... (Ctrl+K)" oninput="handleGlobalSearch(this.value)" autofocus>
+        <kbd style="background:var(--gray-100);padding:2px 6px;border-radius:4px;font-size:11px;color:var(--gray-500);">ESC</kbd>
+      </div>
+      <div id="globalSearchResults" class="global-search-results">
+        <div style="padding:16px;color:var(--gray-500);text-align:center;">Type to search...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick Actions FAB -->
+  <div id="quickActionsFab" class="quick-actions-fab" onclick="toggleQuickActions()">
+    <i class="fas fa-plus"></i>
+  </div>
+  <div id="quickActionsMenu" class="quick-actions-menu" style="display:none;">
+    <div class="quick-action-item" onclick="toggleQuickActions(); showCreateEmployee()"><i class="fas fa-user-plus"></i> Add Employee</div>
+    <div class="quick-action-item" onclick="toggleQuickActions(); navigateTo('leave')"><i class="fas fa-calendar-plus"></i> Apply Leave</div>
+    <div class="quick-action-item" onclick="toggleQuickActions(); navigateTo('chat')"><i class="fas fa-comments"></i> Open Chat</div>
+    <div class="quick-action-item" onclick="toggleQuickActions(); toggleGlobalSearch()"><i class="fas fa-search"></i> Search</div>
+    <div class="quick-action-item" onclick="toggleQuickActions(); navigateTo('reports')"><i class="fas fa-chart-bar"></i> Reports</div>
   </div>
 
   <!-- Toast Container -->

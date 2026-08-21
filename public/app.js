@@ -188,6 +188,7 @@ async function enterApp() {
   
   buildSidebar();
   navigateTo('dashboard');
+  buildSearchIndex();
 }
 
 function logout() {
@@ -221,6 +222,8 @@ const MENU_ITEMS = {
     { route: 'customreports', icon: 'fas fa-file-alt', label: 'Custom Reports' },
     { route: 'orgchart', icon: 'fas fa-sitemap', label: 'Org Chart' },
     { route: 'reports', icon: 'fas fa-chart-bar', label: 'Reports' },
+    { route: 'audit', icon: 'fas fa-history', label: 'Audit Trail' },
+    { route: 'sessions', icon: 'fas fa-desktop', label: 'Active Sessions' },
     { route: 'settings', icon: 'fas fa-cog', label: 'Settings' },
   ],
   HRBP: [
@@ -343,6 +346,8 @@ function navigateTo(route) {
     engagement: 'Employee Engagement',
     exit: 'Exit Management',
     customreports: 'Custom Reports',
+    audit: 'Audit Trail',
+    sessions: 'Active Sessions',
     orgchart: 'Org Chart',
     reports: 'Reports',
     settings: 'Settings',
@@ -388,6 +393,8 @@ async function loadRoute(route) {
       case 'engagement': await loadEngagement(); break;
       case 'exit': await loadExitManagement(); break;
       case 'customreports': await loadCustomReports(); break;
+      case 'audit': await loadAuditTrail(); break;
+      case 'sessions': await loadSessionManagement(); break;
       case 'usermgmt': await loadUserManagement(); break;
       default: content.innerHTML = '<p>Page not found</p>';
     }
@@ -2760,6 +2767,7 @@ async function loadReportTab(tab, btn) {
   if (tab === 'overview') {
     const data = await call('getStandardReport', STATE.token);
     container.innerHTML = `
+      <div style="display:flex;justify-content:flex-end;margin-bottom:12px;"><button class="btn btn-sm btn-outline" onclick="printElement('reportContent')"><i class="fas fa-print"></i> Print Report</button></div>
       <div class="stats-grid">
         <div class="stat-card"><div class="stat-icon blue"><i class="fas fa-users"></i></div><div class="stat-info"><h4>${data.totalEmployees || 0}</h4><p>Total Employees</p></div></div>
         <div class="stat-card"><div class="stat-icon green"><i class="fas fa-user-check"></i></div><div class="stat-info"><h4>${data.activeEmployees || 0}</h4><p>Active</p></div></div>
@@ -2854,6 +2862,14 @@ async function loadSettings() {
       <div class="stat-card" style="cursor: pointer;" onclick="navigateTo('orgchart')">
         <div class="stat-icon orange"><i class="fas fa-sitemap"></i></div>
         <div class="stat-info"><h4>Org Chart</h4><p>Organization hierarchy</p></div>
+      </div>
+      <div class="stat-card" style="cursor: pointer;" onclick="navigateTo('audit')">
+        <div class="stat-icon red"><i class="fas fa-history"></i></div>
+        <div class="stat-info"><h4>Audit Trail</h4><p>System activity log</p></div>
+      </div>
+      <div class="stat-card" style="cursor: pointer;" onclick="navigateTo('sessions')">
+        <div class="stat-icon blue"><i class="fas fa-desktop"></i></div>
+        <div class="stat-info"><h4>Active Sessions</h4><p>Manage user sessions</p></div>
       </div>
     </div>
     
@@ -4119,6 +4135,148 @@ function downloadCustomReportCSV() {
   URL.revokeObjectURL(url);
 }
 
+// ===== GLOBAL SEARCH (Ctrl+K) =====
+let searchIndex = [];
+let searchOpen = false;
+
+async function buildSearchIndex() {
+  try {
+    const [empData, courseData] = await Promise.all([
+      call('listEmployees', STATE.token),
+      call('listCourseCatalog', STATE.token).catch(() => ({ courses: [] }))
+    ]);
+    searchIndex = [];
+    (empData.employees || []).forEach(e => {
+      searchIndex.push({ type: 'employee', icon: 'fas fa-user', label: e.FirstName + ' ' + e.LastName, sub: e.Email + ' - ' + (e.Department || ''), route: 'employees', id: e.EmployeeID });
+    });
+    (courseData.courses || []).forEach(c => {
+      searchIndex.push({ type: 'course', icon: 'fas fa-graduation-cap', label: c.Title, sub: c.Description || '', route: 'learning', id: c.CourseID });
+    });
+    // Add navigation items
+    const navItems = [
+      { type: 'nav', icon: 'fas fa-tachometer-alt', label: 'Dashboard', route: 'dashboard' },
+      { type: 'nav', icon: 'fas fa-users', label: 'Employees', route: 'employees' },
+      { type: 'nav', icon: 'fas fa-calendar-alt', label: 'Leave', route: 'leave' },
+      { type: 'nav', icon: 'fas fa-money-check-alt', label: 'Payroll', route: 'payroll' },
+      { type: 'nav', icon: 'fas fa-comments', label: 'Chat', route: 'chat' },
+      { type: 'nav', icon: 'fas fa-bell', label: 'Notifications', route: 'notifications' },
+      { type: 'nav', icon: 'fas fa-laptop', label: 'Assets', route: 'assets' },
+      { type: 'nav', icon: 'fas fa-plane-departure', label: 'Travel & Expense', route: 'travel' },
+      { type: 'nav', icon: 'fas fa-chart-bar', label: 'Reports', route: 'reports' },
+      { type: 'nav', icon: 'fas fa-cog', label: 'Settings', route: 'settings' },
+    ];
+    searchIndex.push(...navItems);
+  } catch (e) { /* ignore */ }
+}
+
+function toggleGlobalSearch() {
+  searchOpen = !searchOpen;
+  const overlay = document.getElementById('globalSearchOverlay');
+  if (searchOpen) {
+    overlay.style.display = 'flex';
+    document.getElementById('globalSearchInput').focus();
+    if (searchIndex.length === 0) buildSearchIndex();
+  } else {
+    overlay.style.display = 'none';
+  }
+}
+
+function handleGlobalSearch(query) {
+  const results = document.getElementById('globalSearchResults');
+  if (!query || query.length < 2) { results.innerHTML = '<div style="padding:16px;color:var(--gray-500);text-align:center;">Type to search employees, courses, pages...</div>'; return; }
+  const q = query.toLowerCase();
+  const matches = searchIndex.filter(item => item.label.toLowerCase().includes(q) || (item.sub && item.sub.toLowerCase().includes(q))).slice(0, 15);
+  if (matches.length === 0) { results.innerHTML = '<div style="padding:16px;color:var(--gray-500);text-align:center;">No results found</div>'; return; }
+  results.innerHTML = matches.map(m => `<div class="global-search-item" onclick="toggleGlobalSearch(); navigateTo('${m.route}')"><i class="${m.icon}" style="width:20px;color:var(--gray-400);"></i><div><div style="font-weight:500;">${m.label}</div><div style="font-size:12px;color:var(--gray-500);">${m.sub || ''}</div></div></div>`).join('');
+}
+
+// ===== DARK MODE =====
+function toggleDarkMode() {
+  const body = document.body;
+  const isDark = body.classList.toggle('dark-mode');
+  localStorage.setItem('darkMode', isDark ? '1' : '0');
+  const icon = document.querySelector('#darkModeToggle i');
+  if (icon) icon.className = isDark ? 'fas fa-sun' : 'fas fa-moon';
+}
+
+// ===== QUICK ACTIONS FAB =====
+function toggleQuickActions() {
+  const menu = document.getElementById('quickActionsMenu');
+  menu.style.display = menu.style.display === 'none' ? 'flex' : 'none';
+}
+
+// ===== AUDIT TRAIL VIEWER =====
+async function loadAuditTrail() {
+  const content = document.getElementById('contentArea');
+  content.innerHTML = '<div class="flex-center" style="min-height:200px"><div class="spinner"></div></div>';
+  const data = await call('getAuditLog', STATE.token, {});
+  const items = data.items || [];
+  
+  content.innerHTML = `
+    <div class="card"><div class="card-header"><h3>Audit Trail (${items.length} entries)</h3></div><div class="card-body">
+      <div class="table-container">
+        <table><thead><tr><th>Date</th><th>Action</th><th>Actor</th><th>Details</th></tr></thead><tbody>
+        ${items.map(a => `<tr><td style="white-space:nowrap;">${a.CreatedAt ? new Date(a.CreatedAt).toLocaleString() : ''}</td><td><span class="pill pill-info">${a.Action || ''}</span></td><td>${a.Actor || ''}</td><td style="font-size:12px;max-width:300px;overflow:hidden;text-overflow:ellipsis;">${a.Details || ''}</td></tr>`).join('')}
+        ${items.length === 0 ? '<tr><td colspan="4" style="text-align:center;color:var(--gray-500);">No audit entries</td></tr>' : ''}
+        </tbody></table>
+      </div>
+    </div></div>
+  `;
+}
+
+// ===== SESSION MANAGEMENT =====
+async function loadSessionManagement() {
+  const content = document.getElementById('contentArea');
+  content.innerHTML = '<div class="flex-center" style="min-height:200px"><div class="spinner"></div></div>';
+  const sessions = await call('listActiveSessions', STATE.token);
+  
+  content.innerHTML = `
+    <div class="card"><div class="card-header"><h3>Active Sessions (${(sessions || []).length})</h3></div><div class="card-body">
+      <div class="table-container">
+        <table><thead><tr><th>User</th><th>Email</th><th>Role</th><th>Last Seen</th><th>Expires</th></tr></thead><tbody>
+        ${(sessions || []).map(s => `<tr><td>${s.name || ''}</td><td>${s.Email || ''}</td><td><span class="pill pill-info">${s.Role || ''}</span></td><td>${s.LastSeen ? new Date(s.LastSeen).toLocaleString() : '-'}</td><td>${s.ExpiresAt ? new Date(s.ExpiresAt).toLocaleString() : '-'}</td></tr>`).join('')}
+        ${(sessions || []).length === 0 ? '<tr><td colspan="5" style="text-align:center;color:var(--gray-500);">No active sessions</td></tr>' : ''}
+        </tbody></table>
+      </div>
+    </div></div>
+  `;
+}
+
+// ===== PDF EXPORT (via browser print) =====
+function printElement(elementId) {
+  const el = document.getElementById(elementId);
+  if (!el) return;
+  const printWindow = window.open('', '_blank');
+  printWindow.document.write('<html><head><title>RHoSAM HCM</title><style>body{font-family:Arial,sans-serif;padding:20px;}table{width:100%;border-collapse:collapse;}th,td{padding:8px 12px;border:1px solid #ddd;text-align:left;}th{background:#f5f5f5;font-weight:bold;}.header{text-align:center;margin-bottom:20px;}h1{margin:0;color:#4f46e5;}</style></head><body>');
+  printWindow.document.write('<div class="header"><h1>RHoSAM HCM</h1><p>' + (document.getElementById('pageTitle')?.textContent || '') + '</p></div>');
+  printWindow.document.write(el.innerHTML);
+  printWindow.document.write('</body></html>');
+  printWindow.document.close();
+  printWindow.print();
+}
+
+// ===== LOADING SKELETON =====
+function skeleton(rows, cols) {
+  let html = '<div class="skeleton-table">';
+  for (let i = 0; i < (rows || 5); i++) {
+    html += '<div class="skeleton-row">';
+    for (let j = 0; j < (cols || 4); j++) html += '<div class="skeleton-cell"></div>';
+    html += '</div>';
+  }
+  return html + '</div>';
+}
+
+// ===== FRONTEND DATA CACHE =====
+const _fcache = new Map();
+async function cachedCall(key, fn, ttlSeconds) {
+  if (_fcache.has(key)) return _fcache.get(key);
+  const result = await fn();
+  _fcache.set(key, result);
+  setTimeout(() => _fcache.delete(key), (ttlSeconds || 60) * 1000);
+  return result;
+}
+function clearCache() { _fcache.clear(); }
+
 // ===== Init =====
 (async function boot() {
   const ok = await restoreSession();
@@ -4137,5 +4295,22 @@ document.getElementById('modalContainer').addEventListener('click', (e) => {
 
 // ===== Keyboard shortcuts =====
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') closeModal();
+  if (e.key === 'Escape') {
+    if (searchOpen) toggleGlobalSearch();
+    closeModal();
+  }
+  if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+    e.preventDefault();
+    toggleGlobalSearch();
+  }
+  if ((e.ctrlKey || e.metaKey) && e.key === 'd') {
+    e.preventDefault();
+    toggleDarkMode();
+  }
 });
+
+// Restore dark mode on load
+if (localStorage.getItem('darkMode') === '1') {
+  document.body.classList.add('dark-mode');
+  setTimeout(() => { const i = document.querySelector('#darkModeToggle i'); if (i) i.className = 'fas fa-sun'; }, 100);
+}

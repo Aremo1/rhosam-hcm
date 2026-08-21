@@ -5,3 +5,4 @@ public/logo.js
 *.log
 .DS_Store
 thumbs.db
+service-account.json
