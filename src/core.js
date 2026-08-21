@@ -761,12 +761,118 @@ async function approveLeave(token, id, decision, comment) {
     Comment: comment || '', UpdatedAt: new Date().toISOString()
   });
   await notify(l.EmployeeID, me.employeeId, 'Leave ' + decision, 'Leave request ' + decision, comment || '', { category: 'Leave' });
+  // Send email notification
+  const emp = await findByIdAsync(SHEETS.EMP, 'EmployeeID', l.EmployeeID);
+  if (emp && emp.Email) {
+    const subject = `RHoSAM HCM - Leave Request ${decision === 'approve' ? 'Approved' : 'Rejected'}`;
+    const body = `Dear ${emp.FirstName || 'Employee'},\n\nYour ${l.LeaveType || ''} leave request (${l.StartDate || ''} to ${l.EndDate || ''}) has been ${decision === 'approve' ? 'approved' : 'rejected'}.\n${comment ? 'Comment: ' + comment : ''}\n\nBest regards,\nRHoSAM HCM`;
+    await sendEmailAsync(emp.Email, subject, body);
+  }
   return { ok: true };
 }
 
 async function cancelLeave(token, leaveId) {
   const me = await requireLogin(token);
   await updateByIdAsync(SHEETS.LEAVE, 'LeaveID', leaveId, { Status: 'Cancelled', UpdatedAt: new Date().toISOString() });
+  return { ok: true };
+}
+
+/* ================================================================
+   EMPLOYEE SUB-RECORDS: Qualifications, Skills, Certifications, Work History
+   ================================================================ */
+async function saveEmployeeQualification(token, p) {
+  const me = await requireLogin(token);
+  const id = p.QualificationID || uuid();
+  const empId = p.EmployeeID || me.employeeId;
+  if (me.role === 'Employee' && empId !== me.employeeId) throw new Error('Access denied');
+  if (p.QualificationID) {
+    await updateByIdAsync(SHEETS.EMP_QUAL, 'QualificationID', id, { Institution: p.Institution || '', Qualification: p.Qualification || '', FieldOfStudy: p.FieldOfStudy || '', StartDate: p.StartDate || '', EndDate: p.EndDate || '', Grade: p.Grade || '', UpdatedAt: new Date().toISOString() });
+  } else {
+    await appendRowAsync(SHEETS.EMP_QUAL, [id, empId, p.Institution || '', p.Qualification || '', p.FieldOfStudy || '', p.StartDate || '', p.EndDate || '', p.Grade || '', new Date().toISOString(), new Date().toISOString()]);
+  }
+  return { ok: true, id };
+}
+async function getEmployeeQualifications(token, employeeId) {
+  const me = await requireLogin(token);
+  const eid = employeeId || me.employeeId;
+  const rows = await readRowsAsync(SHEETS.EMP_QUAL);
+  return rows.filter(r => String(r.EmployeeID) === String(eid));
+}
+async function deleteEmployeeQualification(token, qualId) {
+  await requireLogin(token);
+  await updateByIdAsync(SHEETS.EMP_QUAL, 'QualificationID', qualId, { DeletedAt: new Date().toISOString() });
+  return { ok: true };
+}
+
+async function saveEmployeeSkill(token, p) {
+  const me = await requireLogin(token);
+  const id = p.SkillID || uuid();
+  const empId = p.EmployeeID || me.employeeId;
+  if (me.role === 'Employee' && empId !== me.employeeId) throw new Error('Access denied');
+  if (p.SkillID) {
+    await updateByIdAsync(SHEETS.EMP_SKILLS, 'SkillID', id, { SkillName: p.SkillName || '', Proficiency: p.Proficiency || '', YearsOfExperience: p.YearsOfExperience || '', UpdatedAt: new Date().toISOString() });
+  } else {
+    await appendRowAsync(SHEETS.EMP_SKILLS, [id, empId, p.SkillName || '', p.Proficiency || '', p.YearsOfExperience || '', new Date().toISOString(), new Date().toISOString()]);
+  }
+  return { ok: true, id };
+}
+async function getEmployeeSkills(token, employeeId) {
+  const me = await requireLogin(token);
+  const eid = employeeId || me.employeeId;
+  const rows = await readRowsAsync(SHEETS.EMP_SKILLS);
+  return rows.filter(r => String(r.EmployeeID) === String(eid));
+}
+async function deleteEmployeeSkill(token, skillId) {
+  await requireLogin(token);
+  await updateByIdAsync(SHEETS.EMP_SKILLS, 'SkillID', skillId, { DeletedAt: new Date().toISOString() });
+  return { ok: true };
+}
+
+async function saveEmployeeCertification(token, p) {
+  const me = await requireLogin(token);
+  const id = p.CertificationID || uuid();
+  const empId = p.EmployeeID || me.employeeId;
+  if (me.role === 'Employee' && empId !== me.employeeId) throw new Error('Access denied');
+  if (p.CertificationID) {
+    await updateByIdAsync(SHEETS.EMP_CERTS, 'CertificationID', id, { CertName: p.CertName || '', IssuingBody: p.IssuingBody || '', IssueDate: p.IssueDate || '', ExpiryDate: p.ExpiryDate || '', CredentialID: p.CredentialID || '', Status: p.Status || 'Active', UpdatedAt: new Date().toISOString() });
+  } else {
+    await appendRowAsync(SHEETS.EMP_CERTS, [id, empId, p.CertName || '', p.IssuingBody || '', p.IssueDate || '', p.ExpiryDate || '', p.CredentialID || '', p.Status || 'Active', new Date().toISOString(), new Date().toISOString()]);
+  }
+  return { ok: true, id };
+}
+async function getEmployeeCertifications(token, employeeId) {
+  const me = await requireLogin(token);
+  const eid = employeeId || me.employeeId;
+  const rows = await readRowsAsync(SHEETS.EMP_CERTS);
+  return rows.filter(r => String(r.EmployeeID) === String(eid));
+}
+async function deleteEmployeeCertification(token, certId) {
+  await requireLogin(token);
+  await updateByIdAsync(SHEETS.EMP_CERTS, 'CertificationID', certId, { DeletedAt: new Date().toISOString() });
+  return { ok: true };
+}
+
+async function saveEmployeeWorkHistory(token, p) {
+  const me = await requireLogin(token);
+  const id = p.HistoryID || uuid();
+  const empId = p.EmployeeID || me.employeeId;
+  if (me.role === 'Employee' && empId !== me.employeeId) throw new Error('Access denied');
+  if (p.HistoryID) {
+    await updateByIdAsync(SHEETS.EMP_WORK, 'HistoryID', id, { CompanyName: p.CompanyName || '', Position: p.Position || '', StartDate: p.StartDate || '', EndDate: p.EndDate || '', ReasonForLeaving: p.ReasonForLeaving || '', UpdatedAt: new Date().toISOString() });
+  } else {
+    await appendRowAsync(SHEETS.EMP_WORK, [id, empId, p.CompanyName || '', p.Position || '', p.StartDate || '', p.EndDate || '', p.ReasonForLeaving || '', new Date().toISOString(), new Date().toISOString()]);
+  }
+  return { ok: true, id };
+}
+async function getEmployeeWorkHistory(token, employeeId) {
+  const me = await requireLogin(token);
+  const eid = employeeId || me.employeeId;
+  const rows = await readRowsAsync(SHEETS.EMP_WORK);
+  return rows.filter(r => String(r.EmployeeID) === String(eid));
+}
+async function deleteEmployeeWorkHistory(token, histId) {
+  await requireLogin(token);
+  await updateByIdAsync(SHEETS.EMP_WORK, 'HistoryID', histId, { DeletedAt: new Date().toISOString() });
   return { ok: true };
 }
 
@@ -1064,6 +1170,85 @@ async function listActiveSessions(token) {
   });
 }
 
+async function getTurnoverReport(token) {
+  await requireRole(token, APP.ADMIN_ROLES);
+  const emp = await readRowsAsync(SHEETS.EMP);
+  const now = new Date();
+  const months = [];
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const monthEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+    const label = d.toLocaleString('default', { month: 'short', year: 'numeric' });
+    const hires = emp.filter(e => {
+      if (!e.HireDate) return false;
+      const hd = new Date(e.HireDate);
+      return hd >= d && hd <= monthEnd;
+    }).length;
+    const terms = emp.filter(e => {
+      if (!e.TerminationDate) return false;
+      const td = new Date(e.TerminationDate);
+      return td >= d && td <= monthEnd;
+    }).length;
+    months.push({ month: label, hires, terminations: terms });
+  }
+  return { ok: true, months };
+}
+
+async function getPayrollSummaryReport(token, period) {
+  await requireRole(token, APP.ADMIN_ROLES.concat(['HRBP']));
+  const runs = period ? (await readRowsAsync(SHEETS.PAYRUN)).filter(r => r.Period === period) : await readRowsAsync(SHEETS.PAYRUN);
+  const emp = await readRowsAsync(SHEETS.EMP);
+  const byDept = {};
+  let totalGross = 0, totalNet = 0, totalDeductions = 0;
+  for (const r of runs) {
+    const e = emp.find(x => String(x.EmployeeID) === String(r.EmployeeID)) || {};
+    const dept = e.Department || 'Unassigned';
+    if (!byDept[dept]) byDept[dept] = { count: 0, gross: 0, net: 0, deductions: 0 };
+    byDept[dept].count++;
+    byDept[dept].gross += Number(r.GrossPay || 0);
+    byDept[dept].net += Number(r.NetPay || 0);
+    byDept[dept].deductions += Number(r.TotalDeduction || 0);
+    totalGross += Number(r.GrossPay || 0);
+    totalNet += Number(r.NetPay || 0);
+    totalDeductions += Number(r.TotalDeduction || 0);
+  }
+  return { ok: true, totalEmployees: runs.length, totalGross, totalNet, totalDeductions, byDepartment: byDept };
+}
+
+async function getLeaveUtilizationReport(token) {
+  await requireRole(token, APP.ADMIN_ROLES.concat(['HRBP', 'Manager']));
+  const leaves = await readRowsAsync(SHEETS.LEAVE);
+  const emp = await readRowsAsync(SHEETS.EMP);
+  const byType = {}, byDept = {};
+  for (const l of leaves) {
+    const type = l.LeaveType || 'Unknown';
+    byType[type] = (byType[type] || 0) + 1;
+    const e = emp.find(x => String(x.EmployeeID) === String(l.EmployeeID)) || {};
+    const dept = e.Department || 'Unassigned';
+    if (!byDept[dept]) byDept[dept] = { total: 0, approved: 0, rejected: 0, pending: 0 };
+    byDept[dept].total++;
+    if (l.Status === 'Approved') byDept[dept].approved++;
+    else if (l.Status === 'Rejected') byDept[dept].rejected++;
+    else byDept[dept].pending++;
+  }
+  return { ok: true, total: leaves.length, byType, byDepartment: byDept };
+}
+
+async function getHeadcountReport(token) {
+  await requireRole(token, APP.ADMIN_ROLES);
+  const emp = await readRowsAsync(SHEETS.EMP);
+  const active = emp.filter(e => String(e.EmploymentStatus) === 'Active');
+  const byDept = {}, byGender = {}, byLocation = {}, byLevel = {}, byGrade = {};
+  active.forEach(e => {
+    const d = e.Department || 'Unassigned'; byDept[d] = (byDept[d] || 0) + 1;
+    const g = (e.Gender || 'Unknown').toLowerCase(); byGender[g] = (byGender[g] || 0) + 1;
+    const l = e.Location || 'Unassigned'; byLocation[l] = (byLocation[l] || 0) + 1;
+    const lv = e.JobLevel || 'Unassigned'; byLevel[lv] = (byLevel[lv] || 0) + 1;
+    const gr = e.Grade || 'Unassigned'; byGrade[gr] = (byGrade[gr] || 0) + 1;
+  });
+  return { ok: true, total: active.length, byDepartment: byDept, byGender, byLocation, byLevel, byGrade };
+}
+
 /* ================================================================
    DOCUMENTS / WORKFLOW
    ================================================================ */
@@ -1072,6 +1257,25 @@ async function getEmployeeDocuments(token, employeeId) {
   const target = employeeId || me.employeeId;
   const rows = await readRowsAsync(SHEETS.DOCS);
   return rows.filter(d => String(d.EmployeeID) === String(target));
+}
+
+async function uploadEmployeeDocument(token, employeeId, docType, fileName, fileData) {
+  const me = await requireLogin(token);
+  const target = employeeId || me.employeeId;
+  if (me.role === 'Employee' && target !== me.employeeId) throw new Error('Access denied');
+  const id = uuid();
+  await appendRowAsync(SHEETS.DOCS, [
+    id, target, docType || 'Other', fileName || '', '',
+    fileData ? '/files/' + id : '', new Date().toISOString()
+  ]);
+  return { ok: true, documentId: id };
+}
+
+async function deleteEmployeeDocument(token, docId) {
+  const me = await requireLogin(token);
+  if (!APP.ADMIN_ROLES.includes(me.role)) throw new Error('Admin access required');
+  await updateByIdAsync(SHEETS.DOCS, 'DocumentID', docId, { Url: '', FileName: '[deleted]' });
+  return { ok: true };
 }
 
 async function createOnboarding(eid) {
@@ -1088,12 +1292,72 @@ async function createOffboarding(eid, reason) {
   }
 }
 
+async function updateWorkflowTask(token, type, taskId, status, comment) {
+  const me = await requireLogin(token);
+  if (!APP.ADMIN_ROLES.includes(me.role) && !APP.MANAGER_ROLES.includes(me.role)) throw new Error('Access denied');
+  const table = type === 'onboarding' ? SHEETS.ONBOARD : SHEETS.OFFBOARD;
+  const idField = type === 'onboarding' ? 'WorkflowID' : 'WorkflowID';
+  await updateByIdAsync(table, idField, taskId, {
+    Status: status || 'Complete', Comment: comment || '', UpdatedAt: new Date().toISOString()
+  });
+  return { ok: true };
+}
+
 async function getWorkflow(token, type) {
   const me = await requireLogin(token);
   const table = type === 'onboarding' ? SHEETS.ONBOARD : SHEETS.OFFBOARD;
   const rows = await readRowsAsync(table);
   if (APP.ADMIN_ROLES.includes(me.role)) return rows;
   return rows.filter(r => String(r.EmployeeID) === String(me.employeeId));
+}
+
+/* ================================================================
+   EMAIL NOTIFICATIONS
+   ================================================================ */
+async function sendBirthdayReminders() {
+  const emp = (await readRowsAsync(SHEETS.EMP)).filter(e => String(e.EmploymentStatus) === 'Active');
+  const today = new Date();
+  const todayStr = `${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  for (const e of emp) {
+    if (!e.DOB) continue;
+    const dob = new Date(e.DOB);
+    const dobStr = `${String(dob.getMonth() + 1).padStart(2, '0')}-${String(dob.getDate()).padStart(2, '0')}`;
+    if (dobStr === todayStr) {
+      const admins = (await readRowsAsync(SHEETS.USERS)).filter(u => APP.ADMIN_ROLES.includes(u.Role));
+      for (const a of admins) {
+        await notify(a.EmployeeID, 'SYSTEM', 'Broadcast', `Happy Birthday ${e.FirstName}!`,
+          `${e.FirstName} ${e.LastName} from ${e.Department || 'Unknown'} has a birthday today.`, { category: 'General' });
+      }
+      await sendEmailAsync(e.Email, 'Happy Birthday from RHoSAM HCM!',
+        `Dear ${e.FirstName},\n\nWishing you a wonderful birthday! 🎂\n\nBest regards,\nRHoSAM HCM Team`);
+    }
+  }
+  return { ok: true };
+}
+
+async function checkProbationReviews() {
+  const emp = (await readRowsAsync(SHEETS.EMP)).filter(e => String(e.EmploymentStatus) === 'Probation' && e.HireDate);
+  const now = new Date();
+  for (const e of emp) {
+    const hireDate = new Date(e.HireDate);
+    const daysSinceHire = Math.floor((now - hireDate) / (1000 * 60 * 60 * 24));
+    if (daysSinceHire >= 90 && daysSinceHire <= 92) {
+      const managerEmp = emp.find(m => String(m.EmployeeID) === String(e.ManagerID));
+      if (managerEmp) {
+        const user = (await readRowsAsync(SHEETS.USERS)).find(u => normalizeEmail(u.Email) === normalizeEmail(managerEmp.Email));
+        if (user) {
+          await notify(user.EmployeeID, 'SYSTEM', 'Onboarding', 'Probation Review Due',
+            `${e.FirstName} ${e.LastName}'s 3-month probation review is due.`, { category: 'General' });
+        }
+      }
+      const admins = (await readRowsAsync(SHEETS.USERS)).filter(u => APP.ADMIN_ROLES.includes(u.Role));
+      for (const a of admins) {
+        await notify(a.EmployeeID, 'SYSTEM', 'Onboarding', 'Probation Review Due',
+          `${e.FirstName} ${e.LastName}'s 3-month probation review is due (hired ${e.HireDate}).`, { category: 'General' });
+      }
+    }
+  }
+  return { ok: true };
 }
 
 /* ================================================================
@@ -1150,9 +1414,16 @@ module.exports = {
   // Org
   getOrgTree, getVisualOrgTree,
   // Reports
-  getStandardReport, getAuditLog, listActiveSessions,
+  getStandardReport, getAuditLog, listActiveSessions, getTurnoverReport, getPayrollSummaryReport, getLeaveUtilizationReport, getHeadcountReport,
   // Documents / Workflow
-  getEmployeeDocuments, getWorkflow,
+  getEmployeeDocuments, uploadEmployeeDocument, deleteEmployeeDocument, getWorkflow, updateWorkflowTask,
+  // Employee sub-records
+  saveEmployeeQualification, getEmployeeQualifications, deleteEmployeeQualification,
+  saveEmployeeSkill, getEmployeeSkills, deleteEmployeeSkill,
+  saveEmployeeCertification, getEmployeeCertifications, deleteEmployeeCertification,
+  saveEmployeeWorkHistory, getEmployeeWorkHistory, deleteEmployeeWorkHistory,
+  // Email notifications
+  sendBirthdayReminders, checkProbationReviews,
   // Permissions
   getPermissions, dashboardForRole,
   // Bulk

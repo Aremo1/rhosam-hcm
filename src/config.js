@@ -136,6 +136,10 @@ const SHEETS = {
   DOCS: 'Documents',
   ORG: 'Org_Chart',
   APPRAISAL_CYCLES: 'Appraisal_Cycles',
+  EMP_QUAL: 'Employee_Qualifications',
+  EMP_SKILLS: 'Employee_Skills',
+  EMP_CERTS: 'Employee_Certifications',
+  EMP_WORK: 'Employee_WorkHistory',
   APPRAISAL_FEEDBACK: 'Appraisal_Feedback',
   // Extra Google Sheets tabs
   EXPORT_LOG: 'ExportLog',
@@ -191,6 +195,10 @@ const SCHEMA = {
   Appraisal_Cycles: ['AppraisalCycleID', 'Title', 'EmployeeID', 'ManagerID', 'ReviewPeriod', 'Status', 'StartDate', 'EndDate', 'CreatedAt', 'UpdatedAt'],
   Appraisal_Feedback: ['FeedbackID', 'AppraisalCycleID', 'EmployeeID', 'ReviewerID', 'ReviewerRole', 'Rating', 'Comments', 'Strengths', 'DevelopmentAreas', 'CreatedAt'],
   Documents: ['DocumentID', 'EmployeeID', 'Type', 'FileName', 'DriveFileId', 'Url', 'CreatedAt'],
+  Employee_Qualifications: ['QualificationID', 'EmployeeID', 'Institution', 'Qualification', 'FieldOfStudy', 'StartDate', 'EndDate', 'Grade', 'CreatedAt', 'UpdatedAt'],
+  Employee_Skills: ['SkillID', 'EmployeeID', 'SkillName', 'Proficiency', 'YearsOfExperience', 'CreatedAt', 'UpdatedAt'],
+  Employee_Certifications: ['CertificationID', 'EmployeeID', 'CertName', 'IssuingBody', 'IssueDate', 'ExpiryDate', 'CredentialID', 'Status', 'CreatedAt', 'UpdatedAt'],
+  Employee_WorkHistory: ['HistoryID', 'EmployeeID', 'CompanyName', 'Position', 'StartDate', 'EndDate', 'ReasonForLeaving', 'CreatedAt', 'UpdatedAt'],
   Org_Chart: ['EmployeeID', 'ManagerID', 'PositionTitle', 'Department', 'Active'],
   // Extra Google Sheets tabs
   ExportLog: ['LogID', 'ExportType', 'EmployeeID', 'RequestedBy', 'FileUrl', 'RecordCount', 'Status', 'CreatedAt'],

@@ -297,6 +297,36 @@ app.get('/api/reports/:type/download', async (req, res) => {
   }
 });
 
+// Cron endpoints for scheduled tasks
+app.get('/cron/birthdays', async (req, res) => {
+  try {
+    const result = await core.sendBirthdayReminders();
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/cron/probation', async (req, res) => {
+  try {
+    const result = await core.checkProbationReviews();
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/cron/digest', async (req, res) => {
+  try {
+    // Daily digest: birthday reminders + probation reviews
+    const b = await core.sendBirthdayReminders();
+    const p = await core.checkProbationReviews();
+    res.json({ ok: true, birthdays: b, probation: p });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // SPA fallback
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/index.html'));

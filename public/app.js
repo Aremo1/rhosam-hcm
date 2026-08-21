@@ -1231,14 +1231,15 @@ async function loadProfile() {
           <p><span class="pill pill-success">${emp.EmploymentStatus || emp.Status}</span></p>
         </div>
       </div>
-    </div>
-    
-    <div class="card">
-      <div class="card-header">
-        <h3>Personal Details</h3>
-        <button class="btn btn-outline btn-sm" onclick="editProfile()"><i class="fas fa-edit"></i> Edit</button>
+    </div>      <div class="card mb-3">
+      <div class="tabs" style="padding: 0 24px;">
+        <button class="tab active" onclick="loadProfileTab('personal', this)">Personal Details</button>
+        <button class="tab" onclick="loadProfileTab('qualifications', this)">Qualifications</button>
+        <button class="tab" onclick="loadProfileTab('skills', this)">Skills</button>
+        <button class="tab" onclick="loadProfileTab('certifications', this)">Certifications</button>
+        <button class="tab" onclick="loadProfileTab('workhistory', this)">Work History</button>
       </div>
-      <div class="card-body">
+      <div class="card-body" id="profileTabContent">
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px;">
           <div><strong>Employee ID:</strong> ${emp.EmployeeID}</div>
           <div><strong>Email:</strong> ${emp.Email}</div>
@@ -1257,10 +1258,157 @@ async function loadProfile() {
           <div><strong>State of Origin:</strong> ${emp.StateOfOrigin || '-'}</div>
           <div><strong>LGA of Origin:</strong> ${emp.LGA || '-'}</div>
         </div>
+        <div style="margin-top: 16px;"><button class="btn btn-outline btn-sm" onclick="editProfile()"><i class="fas fa-edit"></i> Edit Profile</button></div>
       </div>
     </div>
   `;
 }
+
+async function loadProfileTab(tab, btn) {
+  document.querySelectorAll('.tabs .tab').forEach(t => t.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  const container = document.getElementById('profileTabContent');
+  const empId = STATE.me?.EmployeeID;
+  
+  if (tab === 'personal') {
+    loadProfile(); return;
+  } else if (tab === 'qualifications') {
+    const quals = await call('getEmployeeQualifications', STATE.token, empId);
+    container.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <h4>Qualifications</h4>
+        <button class="btn btn-sm btn-primary" onclick="showAddQualification()"><i class="fas fa-plus"></i> Add</button>
+      </div>
+      ${(quals || []).length === 0 ? '<p style="color:var(--gray-500);">No qualifications added yet.</p>' : ''}
+      <table><thead><tr><th>Institution</th><th>Qualification</th><th>Field of Study</th><th>Start</th><th>End</th><th>Grade</th><th>Actions</th></tr></thead><tbody>
+      ${(quals || []).map(q => `<tr><td>${q.Institution || ''}</td><td>${q.Qualification || ''}</td><td>${q.FieldOfStudy || ''}</td><td>${q.StartDate || ''}</td><td>${q.EndDate || ''}</td><td>${q.Grade || ''}</td><td><button class="btn btn-sm btn-danger" onclick="deleteQualification('${q.QualificationID}')"><i class="fas fa-trash"></i></button></td></tr>`).join('')}
+      </tbody></table>
+    `;
+  } else if (tab === 'skills') {
+    const skills = await call('getEmployeeSkills', STATE.token, empId);
+    container.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <h4>Skills</h4>
+        <button class="btn btn-sm btn-primary" onclick="showAddSkill()"><i class="fas fa-plus"></i> Add</button>
+      </div>
+      ${(skills || []).length === 0 ? '<p style="color:var(--gray-500);">No skills added yet.</p>' : ''}
+      <table><thead><tr><th>Skill</th><th>Proficiency</th><th>Years</th><th>Actions</th></tr></thead><tbody>
+      ${(skills || []).map(s => `<tr><td>${s.SkillName || ''}</td><td>${s.Proficiency || ''}</td><td>${s.YearsOfExperience || ''}</td><td><button class="btn btn-sm btn-danger" onclick="deleteSkill('${s.SkillID}')"><i class="fas fa-trash"></i></button></td></tr>`).join('')}
+      </tbody></table>
+    `;
+  } else if (tab === 'certifications') {
+    const certs = await call('getEmployeeCertifications', STATE.token, empId);
+    container.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <h4>Certifications</h4>
+        <button class="btn btn-sm btn-primary" onclick="showAddCertification()"><i class="fas fa-plus"></i> Add</button>
+      </div>
+      ${(certs || []).length === 0 ? '<p style="color:var(--gray-500);">No certifications added yet.</p>' : ''}
+      <table><thead><tr><th>Certification</th><th>Issuing Body</th><th>Issue Date</th><th>Expiry</th><th>Status</th><th>Actions</th></tr></thead><tbody>
+      ${(certs || []).map(c => `<tr><td>${c.CertName || ''}</td><td>${c.IssuingBody || ''}</td><td>${c.IssueDate || ''}</td><td>${c.ExpiryDate || ''}</td><td><span class="pill ${c.Status === 'Active' ? 'pill-success' : 'pill-danger'}">${c.Status || 'Active'}</span></td><td><button class="btn btn-sm btn-danger" onclick="deleteCertification('${c.CertificationID}')"><i class="fas fa-trash"></i></button></td></tr>`).join('')}
+      </tbody></table>
+    `;
+  } else if (tab === 'workhistory') {
+    const work = await call('getEmployeeWorkHistory', STATE.token, empId);
+    container.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <h4>Work History</h4>
+        <button class="btn btn-sm btn-primary" onclick="showAddWorkHistory()"><i class="fas fa-plus"></i> Add</button>
+      </div>
+      ${(work || []).length === 0 ? '<p style="color:var(--gray-500);">No work history added yet.</p>' : ''}
+      <table><thead><tr><th>Company</th><th>Position</th><th>Start</th><th>End</th><th>Reason for Leaving</th><th>Actions</th></tr></thead><tbody>
+      ${(work || []).map(w => `<tr><td>${w.CompanyName || ''}</td><td>${w.Position || ''}</td><td>${w.StartDate || ''}</td><td>${w.EndDate || ''}</td><td>${w.ReasonForLeaving || ''}</td><td><button class="btn btn-sm btn-danger" onclick="deleteWorkHistory('${w.HistoryID}')"><i class="fas fa-trash"></i></button></td></tr>`).join('')}
+      </tbody></table>
+    `;
+  }
+}
+
+async function showAddQualification() {
+  showModal('Add Qualification', `
+    <form id="addQualForm" class="employee-form">
+      <div class="form-group"><label>Institution</label><input type="text" name="Institution" required></div>
+      <div class="form-group"><label>Qualification</label><input type="text" name="Qualification" placeholder="e.g. B.Sc, M.Sc, HND"></div>
+      <div class="form-group"><label>Field of Study</label><input type="text" name="FieldOfStudy"></div>
+      <div class="form-group"><label>Start Date</label><input type="date" name="StartDate"></div>
+      <div class="form-group"><label>End Date</label><input type="date" name="EndDate"></div>
+      <div class="form-group"><label>Grade</label><input type="text" name="Grade" placeholder="e.g. First Class, Upper Credit"></div>
+      <div style="grid-column:1/-1;display:flex;gap:12px;justify-content:flex-end;margin-top:16px;">
+        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save</button>
+      </div>
+    </form>
+  `);
+  document.getElementById('addQualForm').addEventListener('submit', async (e) => {
+    e.preventDefault(); const p = Object.fromEntries(new FormData(e.target));
+    const d = await call('saveEmployeeQualification', STATE.token, p);
+    if (!d.ok) return showToast(d.error, 'error'); showToast('Qualification added', 'success'); closeModal(); loadProfileTab('qualifications', document.querySelector('.tab.active'));
+  });
+}
+async function deleteQualification(id) { if (!confirm('Delete?')) return; await call('deleteEmployeeQualification', STATE.token, id); loadProfileTab('qualifications', document.querySelector('.tab.active')); }
+
+async function showAddSkill() {
+  showModal('Add Skill', `
+    <form id="addSkillForm" class="employee-form">
+      <div class="form-group"><label>Skill Name</label><input type="text" name="SkillName" required></div>
+      <div class="form-group"><label>Proficiency</label><select name="Proficiency"><option value="Beginner">Beginner</option><option value="Intermediate">Intermediate</option><option value="Advanced">Advanced</option><option value="Expert">Expert</option></select></div>
+      <div class="form-group"><label>Years of Experience</label><input type="number" name="YearsOfExperience" min="0" max="50"></div>
+      <div style="grid-column:1/-1;display:flex;gap:12px;justify-content:flex-end;margin-top:16px;">
+        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save</button>
+      </div>
+    </form>
+  `);
+  document.getElementById('addSkillForm').addEventListener('submit', async (e) => {
+    e.preventDefault(); const p = Object.fromEntries(new FormData(e.target));
+    const d = await call('saveEmployeeSkill', STATE.token, p);
+    if (!d.ok) return showToast(d.error, 'error'); showToast('Skill added', 'success'); closeModal(); loadProfileTab('skills', document.querySelector('.tab.active'));
+  });
+}
+async function deleteSkill(id) { if (!confirm('Delete?')) return; await call('deleteEmployeeSkill', STATE.token, id); loadProfileTab('skills', document.querySelector('.tab.active')); }
+
+async function showAddCertification() {
+  showModal('Add Certification', `
+    <form id="addCertForm" class="employee-form">
+      <div class="form-group"><label>Certification Name</label><input type="text" name="CertName" required></div>
+      <div class="form-group"><label>Issuing Body</label><input type="text" name="IssuingBody"></div>
+      <div class="form-group"><label>Issue Date</label><input type="date" name="IssueDate"></div>
+      <div class="form-group"><label>Expiry Date</label><input type="date" name="ExpiryDate"></div>
+      <div class="form-group"><label>Credential ID</label><input type="text" name="CredentialID"></div>
+      <div style="grid-column:1/-1;display:flex;gap:12px;justify-content:flex-end;margin-top:16px;">
+        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save</button>
+      </div>
+    </form>
+  `);
+  document.getElementById('addCertForm').addEventListener('submit', async (e) => {
+    e.preventDefault(); const p = Object.fromEntries(new FormData(e.target));
+    const d = await call('saveEmployeeCertification', STATE.token, p);
+    if (!d.ok) return showToast(d.error, 'error'); showToast('Certification added', 'success'); closeModal(); loadProfileTab('certifications', document.querySelector('.tab.active'));
+  });
+}
+async function deleteCertification(id) { if (!confirm('Delete?')) return; await call('deleteEmployeeCertification', STATE.token, id); loadProfileTab('certifications', document.querySelector('.tab.active')); }
+
+async function showAddWorkHistory() {
+  showModal('Add Work History', `
+    <form id="addWorkForm" class="employee-form">
+      <div class="form-group"><label>Company Name</label><input type="text" name="CompanyName" required></div>
+      <div class="form-group"><label>Position</label><input type="text" name="Position"></div>
+      <div class="form-group"><label>Start Date</label><input type="date" name="StartDate"></div>
+      <div class="form-group"><label>End Date</label><input type="date" name="EndDate"></div>
+      <div class="form-group"><label>Reason for Leaving</label><input type="text" name="ReasonForLeaving"></div>
+      <div style="grid-column:1/-1;display:flex;gap:12px;justify-content:flex-end;margin-top:16px;">
+        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save</button>
+      </div>
+    </form>
+  `);
+  document.getElementById('addWorkForm').addEventListener('submit', async (e) => {
+    e.preventDefault(); const p = Object.fromEntries(new FormData(e.target));
+    const d = await call('saveEmployeeWorkHistory', STATE.token, p);
+    if (!d.ok) return showToast(d.error, 'error'); showToast('Work history added', 'success'); closeModal(); loadProfileTab('workhistory', document.querySelector('.tab.active'));
+  });
+}
+async function deleteWorkHistory(id) { if (!confirm('Delete?')) return; await call('deleteEmployeeWorkHistory', STATE.token, id); loadProfileTab('workhistory', document.querySelector('.tab.active')); }
 
 async function uploadPhoto(input) {
   const file = input.files[0];
@@ -2124,80 +2272,128 @@ function renderOrgTree(nodes, depth) {
 }
 
 // ===== Reports =====
+let currentReportTab = 'overview';
+
 async function loadReports() {
-  const data = await call('getStandardReport', STATE.token);
   const content = document.getElementById('contentArea');
   
   content.innerHTML = `
-    <div class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-icon blue"><i class="fas fa-users"></i></div>
-        <div class="stat-info"><h4>${data.totalEmployees || 0}</h4><p>Total Employees</p></div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon green"><i class="fas fa-user-check"></i></div>
-        <div class="stat-info"><h4>${data.activeEmployees || 0}</h4><p>Active</p></div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon red"><i class="fas fa-user-times"></i></div>
-        <div class="stat-info"><h4>${data.terminatedEmployees || 0}</h4><p>Terminated</p></div>
-      </div>
+    <div class="tabs" style="margin-bottom: 24px;">
+      <button class="tab active" onclick="loadReportTab('overview', this)">Overview</button>
+      <button class="tab" onclick="loadReportTab('headcount', this)">Headcount</button>
+      <button class="tab" onclick="loadReportTab('turnover', this)">Turnover</button>
+      <button class="tab" onclick="loadReportTab('payroll', this)">Payroll Summary</button>
+      <button class="tab" onclick="loadReportTab('leave', this)">Leave Utilization</button>
     </div>
-    
-    <div class="card mb-3">
-      <div class="card-header">
-        <h3>Employee Distribution</h3>
-        <button class="btn btn-sm btn-outline" onclick="downloadReport('employees')">
-          <i class="fas fa-download"></i> Export CSV
-        </button>
+    <div id="reportContent"></div>
+  `;
+  loadReportTab('overview', document.querySelector('.tab.active'));
+}
+
+async function loadReportTab(tab, btn) {
+  document.querySelectorAll('.tabs .tab').forEach(t => t.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  currentReportTab = tab;
+  const container = document.getElementById('reportContent');
+  container.innerHTML = '<div class="flex-center" style="min-height:100px"><div class="spinner"></div></div>';
+  
+  if (tab === 'overview') {
+    const data = await call('getStandardReport', STATE.token);
+    container.innerHTML = `
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-icon blue"><i class="fas fa-users"></i></div><div class="stat-info"><h4>${data.totalEmployees || 0}</h4><p>Total Employees</p></div></div>
+        <div class="stat-card"><div class="stat-icon green"><i class="fas fa-user-check"></i></div><div class="stat-info"><h4>${data.activeEmployees || 0}</h4><p>Active</p></div></div>
+        <div class="stat-card"><div class="stat-icon red"><i class="fas fa-user-times"></i></div><div class="stat-info"><h4>${data.terminatedEmployees || 0}</h4><p>Terminated</p></div></div>
       </div>
-      <div class="card-body">
-        ${Object.entries(data.byDepartment || {}).map(([dept, count]) => `
-          <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--gray-100);">
-            <span>${dept}</span>
-            <span><strong>${count}</strong></span>
-          </div>
-        `).join('')}
-      </div>
-    </div>
-    
-    <div class="card mb-3">
-      <div class="card-header">
-        <h3>Available Reports</h3>
-      </div>
-      <div class="card-body">
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
-          <button class="btn btn-outline btn-block" onclick="downloadReport('employees')">
-            <i class="fas fa-file-csv"></i> Employees Report
-          </button>
-          <button class="btn btn-outline btn-block" onclick="downloadReport('payroll')">
-            <i class="fas fa-file-csv"></i> Payroll Report
-          </button>
-          <button class="btn btn-outline btn-block" onclick="downloadReport('leave')">
-            <i class="fas fa-file-csv"></i> Leave Report
-          </button>
-          <button class="btn btn-outline btn-block" onclick="downloadReport('audit')">
-            <i class="fas fa-file-csv"></i> Audit Log
-          </button>
+      <div class="card mb-3">
+        <div class="card-header"><h3>Employee by Department</h3><button class="btn btn-sm btn-outline" onclick="downloadReport('employees')"><i class="fas fa-download"></i> Export CSV</button></div>
+        <div class="card-body">
+          ${Object.entries(data.byDepartment || {}).map(([dept, count]) => `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--gray-100);"><span>${dept}</span><span><strong>${count}</strong></span></div>`).join('')}
         </div>
       </div>
-    </div>
-  `;
+      <div class="card"><div class="card-header"><h3>CSV Downloads</h3></div><div class="card-body"><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;">
+        <button class="btn btn-outline btn-block" onclick="downloadReport('employees')"><i class="fas fa-file-csv"></i> Employees</button>
+        <button class="btn btn-outline btn-block" onclick="downloadReport('payroll')"><i class="fas fa-file-csv"></i> Payroll</button>
+        <button class="btn btn-outline btn-block" onclick="downloadReport('leave')"><i class="fas fa-file-csv"></i> Leave</button>
+        <button class="btn btn-outline btn-block" onclick="downloadReport('audit')"><i class="fas fa-file-csv"></i> Audit Log</button>
+      </div></div></div>
+    `;
+  } else if (tab === 'headcount') {
+    const data = await call('getHeadcountReport', STATE.token);
+    container.innerHTML = `
+      <div class="stats-grid"><div class="stat-card"><div class="stat-icon blue"><i class="fas fa-users"></i></div><div class="stat-info"><h4>${data.total || 0}</h4><p>Active Employees</p></div></div></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+        <div class="card"><div class="card-header"><h3>By Department</h3></div><div class="card-body">${Object.entries(data.byDepartment || {}).map(([k,v]) => `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--gray-100);"><span>${k}</span><span>${v}</span></div>`).join('')}</div></div>
+        <div class="card"><div class="card-header"><h3>By Gender</h3></div><div class="card-body">${Object.entries(data.byGender || {}).map(([k,v]) => `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--gray-100);"><span>${k}</span><span>${v}</span></div>`).join('')}</div></div>
+        <div class="card"><div class="card-header"><h3>By Location</h3></div><div class="card-body">${Object.entries(data.byLocation || {}).map(([k,v]) => `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--gray-100);"><span>${k}</span><span>${v}</span></div>`).join('')}</div></div>
+        <div class="card"><div class="card-header"><h3>By Job Level</h3></div><div class="card-body">${Object.entries(data.byLevel || {}).map(([k,v]) => `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--gray-100);"><span>${k}</span><span>${v}</span></div>`).join('')}</div></div>
+      </div>
+    `;
+  } else if (tab === 'turnover') {
+    const data = await call('getTurnoverReport', STATE.token);
+    container.innerHTML = `
+      <div class="card"><div class="card-header"><h3>12-Month Turnover Trend</h3></div><div class="card-body">
+        <div style="display:flex;gap:4px;align-items:flex-end;height:200px;padding-top:20px;">
+          ${(data.months || []).map(m => {
+            const max = Math.max(...(data.months || []).map(x => Math.max(x.hires, x.terminations)), 1);
+            const hH = Math.round((m.hires / max) * 170);
+            const tH = Math.round((m.terminations / max) * 170);
+            return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;"><div style="display:flex;gap:2px;align-items:flex-end;height:170px;"><div style="width:16px;background:var(--success);border-radius:3px 3px 0 0;height:${hH}px;" title="Hires: ${m.hires}"></div><div style="width:16px;background:var(--danger);border-radius:3px 3px 0 0;height:${tH}px;" title="Terminations: ${m.terminations}"></div></div><div style="font-size:10px;color:var(--gray-500);white-space:nowrap;">${m.month}</div></div>`;
+          }).join('')}
+        </div>
+        <div style="display:flex;gap:16px;margin-top:12px;font-size:12px;"><span><span style="display:inline-block;width:12px;height:12px;background:var(--success);border-radius:2px;margin-right:4px;"></span>Hires</span><span><span style="display:inline-block;width:12px;height:12px;background:var(--danger);border-radius:2px;margin-right:4px;"></span>Terminations</span></div>
+      </div></div>
+    `;
+  } else if (tab === 'payroll') {
+    const data = await call('getPayrollSummaryReport', STATE.token);
+    container.innerHTML = `
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-icon blue"><i class="fas fa-money-check-alt"></i></div><div class="stat-info"><h4>₦${(data.totalGross || 0).toLocaleString()}</h4><p>Total Gross Pay</p></div></div>
+        <div class="stat-card"><div class="stat-icon green"><i class="fas fa-hand-holding-usd"></i></div><div class="stat-info"><h4>₦${(data.totalNet || 0).toLocaleString()}</h4><p>Total Net Pay</p></div></div>
+        <div class="stat-card"><div class="stat-icon red"><i class="fas fa-minus-circle"></i></div><div class="stat-info"><h4>₦${(data.totalDeductions || 0).toLocaleString()}</h4><p>Total Deductions</p></div></div>
+      </div>
+      <div class="card"><div class="card-header"><h3>By Department</h3></div><div class="card-body">
+        <table><thead><tr><th>Department</th><th>Employees</th><th>Gross (₦)</th><th>Net (₦)</th><th>Deductions (₦)</th></tr></thead><tbody>
+        ${Object.entries(data.byDepartment || {}).map(([k,v]) => `<tr><td>${k}</td><td>${v.count}</td><td>${v.gross.toLocaleString()}</td><td>${v.net.toLocaleString()}</td><td>${v.deductions.toLocaleString()}</td></tr>`).join('')}
+        </tbody></table>
+      </div></div>
+    `;
+  } else if (tab === 'leave') {
+    const data = await call('getLeaveUtilizationReport', STATE.token);
+    container.innerHTML = `
+      <div class="stats-grid"><div class="stat-card"><div class="stat-icon blue"><i class="fas fa-calendar-alt"></i></div><div class="stat-info"><h4>${data.total || 0}</h4><p>Total Leave Requests</p></div></div></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+        <div class="card"><div class="card-header"><h3>By Leave Type</h3></div><div class="card-body">
+          ${Object.entries(data.byType || {}).map(([k,v]) => `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--gray-100);"><span>${k}</span><span>${v}</span></div>`).join('')}
+        </div></div>
+        <div class="card"><div class="card-header"><h3>By Department</h3></div><div class="card-body">
+          <table><thead><tr><th>Department</th><th>Total</th><th>Approved</th><th>Rejected</th><th>Pending</th></tr></thead><tbody>
+          ${Object.entries(data.byDepartment || {}).map(([k,v]) => `<tr><td>${k}</td><td>${v.total}</td><td style="color:var(--success);">${v.approved}</td><td style="color:var(--danger);">${v.rejected}</td><td style="color:var(--warning);">${v.pending}</td></tr>`).join('')}
+          </tbody></table>
+        </div></div>
+      </div>
+    `;
+  }
 }
 
 // ===== Settings =====
 async function loadSettings() {
   const content = document.getElementById('contentArea');
   
-  content.innerHTML = `
+  const dropdowns = await call('getDropdownConfig', STATE.token);
+    content.innerHTML = `
     <div class="stats-grid">
       <div class="stat-card" style="cursor: pointer;" onclick="navigateTo('usermgmt')">
         <div class="stat-icon blue"><i class="fas fa-user-shield"></i></div>
-        <div class="stat-info"><h4>Users</h4><p>Manage user accounts</p></div>
+        <div class="stat-info"><h4>Users</h4><p>Manage user accounts & roles</p></div>
       </div>
       <div class="stat-card" style="cursor: pointer;" onclick="navigateTo('employees')">
         <div class="stat-icon green"><i class="fas fa-users"></i></div>
         <div class="stat-info"><h4>Employees</h4><p>Employee directory</p></div>
+      </div>
+      <div class="stat-card" style="cursor: pointer;" onclick="navigateTo('orgchart')">
+        <div class="stat-icon orange"><i class="fas fa-sitemap"></i></div>
+        <div class="stat-info"><h4>Org Chart</h4><p>Organization hierarchy</p></div>
       </div>
     </div>
     
@@ -2210,6 +2406,33 @@ async function loadSettings() {
           <div><strong>Country Default:</strong> Nigeria</div>
           <div><strong>Timezone:</strong> Africa/Lagos</div>
           <div><strong>Database:</strong> PostgreSQL</div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="card mb-3">
+      <div class="card-header"><h3>Email Notifications</h3></div>
+      <div class="card-body">
+        <p style="color: var(--gray-600); margin-bottom: 12px;">Automated email notifications are triggered by system events:</p>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <div style="padding: 12px; background: var(--gray-50); border-radius: var(--radius);"><strong>🎂 Birthday Reminders</strong><br><small style="color: var(--gray-500);">Sends email to employees on their birthday</small></div>
+          <div style="padding: 12px; background: var(--gray-50); border-radius: var(--radius);"><strong>📋 Probation Reviews</strong><br><small style="color: var(--gray-500);">Notifies managers at 90-day probation mark</small></div>
+          <div style="padding: 12px; background: var(--gray-50); border-radius: var(--radius);"><strong>✅ Leave Approvals</strong><br><small style="color: var(--gray-500);">Email when leave is approved or rejected</small></div>
+          <div style="padding: 12px; background: var(--gray-50); border-radius: var(--radius);"><strong>💬 Chat Messages</strong><br><small style="color: var(--gray-500);">In-app notifications for new messages</small></div>
+        </div>
+        <p style="color: var(--gray-500); font-size: 12px; margin-top: 12px;">Set up a cron job to run daily: <code>GET /cron/digest</code> at 07:00</p>
+      </div>
+    </div>
+    
+    <div class="card mb-3">
+      <div class="card-header"><h3>Dropdown Management</h3></div>
+      <div class="card-body">
+        <p style="color: var(--gray-600); margin-bottom: 16px;">Current dropdown values (managed via config.js):</p>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px;">
+          <div><strong>Departments (${(dropdowns.departments || []).length}):</strong> ${(dropdowns.departments || []).join(', ')}</div>
+          <div><strong>Positions (${(dropdowns.positions || []).length}):</strong> ${(dropdowns.positions || []).join(', ')}</div>
+          <div><strong>Locations (${(dropdowns.locations || []).length}):</strong> ${(dropdowns.locations || []).join(', ')}</div>
+          <div><strong>Grades (${(dropdowns.grades || []).length}):</strong> ${(dropdowns.grades || []).join(', ')}</div>
         </div>
       </div>
     </div>
