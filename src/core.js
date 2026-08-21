@@ -1702,6 +1702,283 @@ async function updateExitClearance(token, clearanceId, status, clearedBy, notes)
 }
 
 /* ================================================================
+   WORKFLOW AUTOMATION
+   ================================================================ */
+async function createWorkflowTemplate(token, p) {
+  await requireRole(token, APP.ADMIN_ROLES);
+  const id = uuid();
+  await appendRowAsync(SHEETS.WORKFLOW_TEMPLATES, [
+    id, p.Name || '', p.Type || 'General', JSON.stringify(p.Steps || []),
+    'TRUE', me?.employeeId || '', new Date().toISOString(), new Date().toISOString()
+  ]);
+  return { ok: true, templateId: id };
+}
+
+async function listWorkflowTemplates(token) {
+  await requireRole(token, APP.ADMIN_ROLES);
+  return { ok: true, templates: await readRowsAsync(SHEETS.WORKFLOW_TEMPLATES) };
+}
+
+async function startWorkflow(token, templateId, targetEmployeeId) {
+  const me = await requireLogin(token);
+  const template = await findByIdAsync(SHEETS.WORKFLOW_TEMPLATES, 'TemplateID', templateId);
+  if (!template) throw new Error('Template not found');
+  const steps = JSON.parse(template.Steps || '[]');
+  const instanceId = uuid();
+  await appendRowAsync(SHEETS.WORKFLOW_INSTANCES, [
+    instanceId, templateId, me.employeeId, targetEmployeeId || '', 'In Progress', '0',
+    new Date().toISOString(), '', new Date().toISOString()
+  ]);
+  for (let i = 0; i < steps.length; i++) {
+    const step = steps[i];
+    await appendRowAsync(SHEETS.WORKFLOW_STEPS, [
+      uuid(), instanceId, step.name || step, step.assignTo || '', i === 0 ? 'Pending' : 'Waiting', '', '', new Date().toISOString()
+    ]);
+    // Notify assignee
+    if (step.assignTo) {
+      await notify(step.assignTo, me.employeeId, 'Workflow', 'New task assigned',
+        `You have a new task: ${step.name || step}`, { category: 'General', refType: 'Workflow', refId: instanceId });
+    }
+  }
+  return { ok: true, instanceId };
+}
+
+async function getMyWorkflows(token) {
+  const me = await requireLogin(token);
+  const instances = await readRowsAsync(SHEETS.WORKFLOW_INSTANCES);
+  const steps = await readRowsAsync(SHEETS.WORKFLOW_STEPS);
+  const myInstances = instances.filter(i => String(i.InitiatorID) === String(me.employeeId));
+  const mySteps = steps.filter(s => String(s.AssignedTo) === String(me.employeeId));
+  return { ok: true, initiated: myInstances, assigned: mySteps };
+}
+
+async function completeWorkflowStep(token, stepId, status, comment) {
+  const me = await requireLogin(token);
+  await updateByIdAsync(SHEETS.WORKFLOW_STEPS, 'StepID', stepId, {
+    Status: status || 'Completed', Comment: comment || '', CompletedAt: new Date().toISOString()
+  });
+  // Check if instance is complete
+  const step = await findByIdAsync(SHEETS.WORKFLOW_STEPS, 'StepID', stepId);
+  if (step) {
+    const allSteps = (await readRowsAsync(SHEETS.WORKFLOW_STEPS)).filter(s => String(s.InstanceID) === String(step.InstanceID));
+    const allDone = allSteps.every(s => s.Status === 'Completed');
+    if (allDone) {
+      await updateByIdAsync(SHEETS.WORKFLOW_INSTANCES, 'InstanceID', step.InstanceID, {
+        Status: 'Completed', CompletedAt: new Date().toISOString()
+      });
+    }
+  }
+  return { ok: true };
+}
+
+/* ================================================================
+   MULTI-COMPANY / BRANCHES
+   ================================================================ */
+async function createCompany(token, p) {
+  await requireRole(token, ['Admin']);
+  const id = uuid();
+  await appendRowAsync(SHEETS.COMPANIES, [
+    id, p.Name || '', p.RegistrationNumber || '', p.Address || '',
+    p.Phone || '', p.Email || '', p.Logo || '', p.DefaultCurrency || 'NGN',
+    'Active', new Date().toISOString(), new Date().toISOString()
+  ]);
+  return { ok: true, companyId: id };
+}
+
+async function listCompanies(token) {
+  await requireLogin(token);
+  return { ok: true, companies: await readRowsAsync(SHEETS.COMPANIES) };
+}
+
+async function createBranch(token, p) {
+  await requireRole(token, ['Admin']);
+  const id = uuid();
+  await appendRowAsync(SHEETS.BRANCHES, [
+    id, p.CompanyID || '', p.Name || '', p.Address || '', p.State || '',
+    p.Phone || '', p.ManagerID || '', 'Active', new Date().toISOString(), new Date().toISOString()
+  ]);
+  return { ok: true, branchId: id };
+}
+
+async function listBranches(token, companyId) {
+  await requireLogin(token);
+  const branches = await readRowsAsync(SHEETS.BRANCHES);
+  if (companyId) return branches.filter(b => String(b.CompanyID) === String(companyId));
+  return branches;
+}
+
+/* ================================================================
+   COMPLIANCE & POLICY
+   ================================================================ */
+async function createPolicy(token, p) {
+  await requireRole(token, APP.ADMIN_ROLES);
+  const id = uuid();
+  await appendRowAsync(SHEETS.POLICIES, [
+    id, p.Title || '', p.Category || 'General', p.Content || '',
+    p.Version || '1.0', p.EffectiveDate || '', p.ReviewDate || '',
+    'Active', me?.employeeId || '', new Date().toISOString(), new Date().toISOString()
+  ]);
+  // Notify all employees
+  const employees = (await readRowsAsync(SHEETS.EMP)).filter(e => String(e.EmploymentStatus) === 'Active');
+  for (const e of employees.slice(0, 50)) {
+    await notify(e.EmployeeID, 'SYSTEM', 'Policy', 'New policy published',
+      `New policy: ${p.Title || ''}`, { category: 'General', refType: 'Policy', refId: id });
+  }
+  return { ok: true, policyId: id };
+}
+
+async function listPolicies(token) {
+  await requireLogin(token);
+  return { ok: true, policies: await readRowsAsync(SHEETS.POLICIES) };
+}
+
+async function acknowledgePolicy(token, policyId) {
+  const me = await requireLogin(token);
+  const existing = (await readRowsAsync(SHEETS.POLICY_ACK)).find(a => String(a.PolicyID) === String(policyId) && String(a.EmployeeID) === String(me.employeeId));
+  if (!existing) {
+    await appendRowAsync(SHEETS.POLICY_ACK, [
+      uuid(), policyId, me.employeeId, new Date().toISOString(), ''
+    ]);
+  }
+  return { ok: true };
+}
+
+async function getPolicyAcknowledgements(token, policyId) {
+  await requireRole(token, APP.ADMIN_ROLES);
+  const acks = (await readRowsAsync(SHEETS.POLICY_ACK)).filter(a => String(a.PolicyID) === String(policyId));
+  const emp = await readRowsAsync(SHEETS.EMP);
+  return acks.map(a => {
+    const e = emp.find(x => String(x.EmployeeID) === String(a.EmployeeID)) || {};
+    return { ...a, Name: [e.FirstName, e.LastName].join(' ') };
+  });
+}
+
+/* ================================================================
+   PERFORMANCE REVIEWS (OKRs + Peer Reviews)
+   ================================================================ */
+async function saveOKR(token, p) {
+  const me = await requireLogin(token);
+  const empId = p.EmployeeID || me.employeeId;
+  const id = p.OKRID || uuid();
+  if (p.OKRID) {
+    await updateByIdAsync(SHEETS.OKRs, 'OKRID', id, {
+      Objective: p.Objective || '', KeyResults: JSON.stringify(p.KeyResults || []),
+      Progress: p.Progress || '0', Status: p.Status || 'In Progress',
+      ManagerComment: p.ManagerComment || '', UpdatedAt: new Date().toISOString()
+    });
+  } else {
+    await appendRowAsync(SHEETS.OKRs, [
+      id, empId, p.Objective || '', JSON.stringify(p.KeyResults || []),
+      p.Quarter || '', p.Year || new Date().getFullYear().toString(),
+      p.Progress || '0', p.Status || 'In Progress', p.ManagerComment || '',
+      new Date().toISOString(), new Date().toISOString()
+    ]);
+  }
+  return { ok: true, okrId: id };
+}
+
+async function getMyOKRs(token) {
+  const me = await requireLogin(token);
+  const rows = await readRowsAsync(SHEETS.OKRs);
+  if (APP.ADMIN_ROLES.includes(me.role) || APP.MANAGER_ROLES.includes(me.role)) return rows;
+  return rows.filter(r => String(r.EmployeeID) === String(me.employeeId));
+}
+
+async function submitPeerReview(token, p) {
+  const me = await requireLogin(token);
+  const id = uuid();
+  await appendRowAsync(SHEETS.PEER_REVIEWS, [
+    id, me.employeeId, p.RevieweeID || '', p.ReviewPeriod || '',
+    JSON.stringify(p.Questions || []), JSON.stringify(p.Answers || {}),
+    p.OverallRating || '', p.Strengths || '', p.Improvements || '',
+    'Submitted', new Date().toISOString()
+  ]);
+  return { ok: true, reviewId: id };
+}
+
+async function getMyPeerReviews(token) {
+  const me = await requireLogin(token);
+  const rows = await readRowsAsync(SHEETS.PEER_REVIEWS);
+  return rows.filter(r => String(r.RevieweeID) === String(me.employeeId) || String(r.ReviewerID) === String(me.employeeId));
+}
+
+/* ================================================================
+   ADVANCED ANALYTICS
+   ================================================================ */
+async function getAdvancedAnalytics(token) {
+  await requireRole(token, APP.ADMIN_ROLES);
+  const emp = await readRowsAsync(SHEETS.EMP);
+  const leaves = await readRowsAsync(SHEETS.LEAVE);
+  const salaries = await readRowsAsync(SHEETS.SALARY);
+  const payruns = await readRowsAsync(SHEETS.PAYRUN);
+  
+  const now = new Date();
+  const yearStart = new Date(now.getFullYear(), 0, 1);
+  
+  // Headcount trends (monthly hires for current year)
+  const monthlyHires = [];
+  for (let i = 0; i < 12; i++) {
+    const d = new Date(now.getFullYear(), i, 1);
+    const monthEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+    const hires = emp.filter(e => { if (!e.HireDate) return false; const hd = new Date(e.HireDate); return hd >= d && hd <= monthEnd; }).length;
+    const terms = emp.filter(e => { if (!e.TerminationDate) return false; const td = new Date(e.TerminationDate); return td >= d && td <= monthEnd; }).length;
+    monthlyHires.push({ month: d.toLocaleString('default', { month: 'short' }), hires, terminations: terms });
+  }
+  
+  // Department distribution
+  const byDept = {};
+  emp.filter(e => String(e.EmploymentStatus) === 'Active').forEach(e => {
+    const d = e.Department || 'Unassigned'; byDept[d] = (byDept[d] || 0) + 1;
+  });
+  
+  // Gender breakdown
+  const gender = { male: emp.filter(e => String(e.Gender).toLowerCase() === 'male').length, female: emp.filter(e => String(e.Gender).toLowerCase() === 'female').length };
+  
+  // Leave utilization
+  const leaveByType = {};
+  leaves.forEach(l => { leaveByType[l.LeaveType || 'Unknown'] = (leaveByType[l.LeaveType || 'Unknown'] || 0) + 1; });
+  
+  // Payroll summary
+  const totalGross = payruns.reduce((s, r) => s + Number(r.GrossPay || 0), 0);
+  const totalNet = payruns.reduce((s, r) => s + Number(r.NetPay || 0), 0);
+  const totalDeductions = payruns.reduce((s, r) => s + Number(r.TotalDeduction || 0), 0);
+  
+  return {
+    ok: true,
+    headcount: { total: emp.length, active: emp.filter(e => String(e.EmploymentStatus) === 'Active').length, terminated: emp.filter(e => String(e.EmploymentStatus) === 'Terminated').length },
+    monthlyTrend: monthlyHires,
+    byDepartment: byDept,
+    gender,
+    leaveByType,
+    payroll: { totalGross, totalNet, totalDeductions, runs: payruns.length },
+    salaryAvg: salaries.length ? Math.round(salaries.reduce((s, r) => s + Number(r.Basic || 0), 0) / salaries.length) : 0
+  };
+}
+
+/* ================================================================
+   EMPLOYEE SELF-SERVICE
+   ================================================================ */
+async function selfServiceUpdateProfile(token, patch) {
+  const me = await requireLogin(token);
+  const allowed = ['Phone', 'Address', 'AddressState', 'AddressLGA', 'LinkedInUrl', 'TwitterUrl', 'PortfolioUrl', 'PersonalStatement', 'Allergies'];
+  const safe = {};
+  allowed.forEach(k => { if (patch[k] !== undefined) safe[k] = patch[k]; });
+  if (Object.keys(safe).length === 0) throw new Error('No valid fields to update');
+  safe.UpdatedAt = new Date().toISOString();
+  await updateByIdAsync(SHEETS.EMP, 'EmployeeID', me.employeeId, safe);
+  await auditAsync('SELF_SERVICE_UPDATE', me.email, { fields: Object.keys(safe) });
+  return { ok: true };
+}
+
+async function submitChangeRequest(token, p) {
+  const me = await requireLogin(token);
+  await notify(p.ManagerID || '', me.employeeId, 'Change Request', 'Profile change request',
+    `${me.email} requests: ${p.field || ''} changed from "${p.oldValue || ''}" to "${p.newValue || ''}"`,
+    { category: 'General', canApprove: true, refType: 'ChangeRequest' });
+  return { ok: true };
+}
+
+/* ================================================================
    CUSTOM REPORTS
    ================================================================ */
 async function generateCustomReport(token, p) {
@@ -1801,6 +2078,18 @@ module.exports = {
   createEngagementSurvey, listEngagementSurveys, submitEngagementResponse, getEngagementResults,
   // Separation / Exit
   createExitInterview, completeExitInterview, getExitInterviews, createExitClearance, getExitClearance, updateExitClearance,
+  // Workflow Automation
+  createWorkflowTemplate, listWorkflowTemplates, startWorkflow, getMyWorkflows, completeWorkflowStep,
+  // Multi-company
+  createCompany, listCompanies, createBranch, listBranches,
+  // Compliance & Policy
+  createPolicy, listPolicies, acknowledgePolicy, getPolicyAcknowledgements,
+  // Performance Reviews
+  saveOKR, getMyOKRs, submitPeerReview, getMyPeerReviews,
+  // Advanced Analytics
+  getAdvancedAnalytics,
+  // Employee Self-Service
+  selfServiceUpdateProfile, submitChangeRequest,
   // Custom Reports
   generateCustomReport,
   // Email notifications

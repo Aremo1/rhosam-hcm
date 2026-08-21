@@ -219,6 +219,11 @@ const MENU_ITEMS = {
     { route: 'travel', icon: 'fas fa-plane-departure', label: 'Travel & Expense' },
     { route: 'engagement', icon: 'fas fa-heart', label: 'Engagement' },
     { route: 'exit', icon: 'fas fa-door-open', label: 'Exit Management' },
+    { route: 'workflows', icon: 'fas fa-project-diagram', label: 'Workflows' },
+    { route: 'analytics', icon: 'fas fa-chart-line', label: 'Analytics' },
+    { route: 'companies', icon: 'fas fa-building', label: 'Companies' },
+    { route: 'policies', icon: 'fas fa-gavel', label: 'Policies' },
+    { route: 'okrs', icon: 'fas fa-bullseye', label: 'OKRs' },
     { route: 'customreports', icon: 'fas fa-file-alt', label: 'Custom Reports' },
     { route: 'orgchart', icon: 'fas fa-sitemap', label: 'Org Chart' },
     { route: 'reports', icon: 'fas fa-chart-bar', label: 'Reports' },
@@ -240,6 +245,9 @@ const MENU_ITEMS = {
     { route: 'travel', icon: 'fas fa-plane-departure', label: 'Travel & Expense' },
     { route: 'engagement', icon: 'fas fa-heart', label: 'Engagement' },
     { route: 'exit', icon: 'fas fa-door-open', label: 'Exit Management' },
+    { route: 'workflows', icon: 'fas fa-project-diagram', label: 'Workflows' },
+    { route: 'policies', icon: 'fas fa-gavel', label: 'Policies' },
+    { route: 'okrs', icon: 'fas fa-bullseye', label: 'OKRs' },
     { route: 'customreports', icon: 'fas fa-file-alt', label: 'Custom Reports' },
     { route: 'orgchart', icon: 'fas fa-sitemap', label: 'Org Chart' },
     { route: 'reports', icon: 'fas fa-chart-bar', label: 'Reports' },
@@ -299,6 +307,9 @@ const MENU_ITEMS = {
     { route: 'assets', icon: 'fas fa-laptop', label: 'My Assets' },
     { route: 'travel', icon: 'fas fa-plane-departure', label: 'Travel & Expense' },
     { route: 'engagement', icon: 'fas fa-heart', label: 'Engagement' },
+    { route: 'workflows', icon: 'fas fa-project-diagram', label: 'My Tasks' },
+    { route: 'policies', icon: 'fas fa-gavel', label: 'Policies' },
+    { route: 'okrs', icon: 'fas fa-bullseye', label: 'My OKRs' },
     { route: 'payslips', icon: 'fas fa-file-invoice-dollar', label: 'My Payslips' },
   ],
 };
@@ -345,6 +356,11 @@ function navigateTo(route) {
     travel: 'Travel & Expense',
     engagement: 'Employee Engagement',
     exit: 'Exit Management',
+    workflows: 'Workflow Automation',
+    analytics: 'Advanced Analytics',
+    companies: 'Multi-Company',
+    policies: 'Compliance & Policies',
+    okrs: 'OKRs & Performance',
     customreports: 'Custom Reports',
     audit: 'Audit Trail',
     sessions: 'Active Sessions',
@@ -392,6 +408,11 @@ async function loadRoute(route) {
       case 'travel': await loadTravelExpense(); break;
       case 'engagement': await loadEngagement(); break;
       case 'exit': await loadExitManagement(); break;
+      case 'workflows': await loadWorkflows(); break;
+      case 'analytics': await loadAnalytics(); break;
+      case 'companies': await loadCompanies(); break;
+      case 'policies': await loadPolicies(); break;
+      case 'okrs': await loadOKRs(); break;
       case 'customreports': await loadCustomReports(); break;
       case 'audit': await loadAuditTrail(); break;
       case 'sessions': await loadSessionManagement(); break;
@@ -4276,6 +4297,254 @@ async function cachedCall(key, fn, ttlSeconds) {
   return result;
 }
 function clearCache() { _fcache.clear(); }
+
+// ===== WORKFLOW AUTOMATION =====
+async function loadWorkflows() {
+  const content = document.getElementById('contentArea');
+  const role = STATE.user?.role;
+  const isAdmin = ['Admin', 'HRBP'].includes(role);
+  
+  const data = await call('getMyWorkflows', STATE.token);
+  content.innerHTML = `
+    ${isAdmin ? `
+    <div class="card mb-3"><div class="card-header"><h3>Start Workflow</h3></div><div class="card-body">
+      <form id="workflowForm" style="display:flex;gap:16px;align-items:flex-end;">
+        <div class="form-group" style="flex:1;margin-bottom:0;"><label>Template</label><select name="templateId" id="wfTemplateSelect" required><option value="">Select</option></select></div>
+        <div class="form-group" style="flex:1;margin-bottom:0;"><label>Target Employee</label><select name="targetEmployeeId"><option value="">Select (optional)</option></select></div>
+        <button type="submit" class="btn btn-primary"><i class="fas fa-play"></i> Start</button>
+      </form>
+    </div></div>
+    ` : ''}
+    
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+      <div class="card"><div class="card-header"><h3>My Initiated (${(data.initiated || []).length})</h3></div><div class="card-body">
+        ${(data.initiated || []).map(i => `<div style="padding:12px 0;border-bottom:1px solid var(--gray-100);"><strong>${i.TemplateID || ''}</strong><br><span class="pill ${i.Status === 'Completed' ? 'pill-success' : 'pill-warning'}">${i.Status || ''}</span></div>`).join('')}
+        ${(data.initiated || []).length === 0 ? '<p style="color:var(--gray-500);">No workflows initiated</p>' : ''}
+      </div></div>
+      <div class="card"><div class="card-header"><h3>My Assigned Tasks (${(data.assigned || []).length})</h3></div><div class="card-body">
+        ${(data.assigned || []).map(s => `<div style="padding:12px 0;border-bottom:1px solid var(--gray-100);display:flex;justify-content:space-between;align-items:center;"><div><strong>${s.StepName || ''}</strong><br><span class="pill ${s.Status === 'Completed' ? 'pill-success' : 'pill-warning'}">${s.Status || ''}</span></div>${s.Status === 'Pending' ? `<button class="btn btn-sm btn-success" onclick="completeWfStep('${s.StepID}')"><i class="fas fa-check"></i> Complete</button>` : ''}</div>`).join('')}
+        ${(data.assigned || []).length === 0 ? '<p style="color:var(--gray-500);">No tasks assigned</p>' : ''}
+      </div></div>
+    </div>
+  `;
+  
+  if (isAdmin) {
+    const [tpls, emps] = await Promise.all([call('listWorkflowTemplates', STATE.token), call('listEmployees', STATE.token)]);
+    document.getElementById('wfTemplateSelect').innerHTML = '<option value="">Select</option>' + (tpls.templates || []).map(t => `<option value="${t.TemplateID}">${t.Name || ''}</option>`).join('');
+    document.getElementById('workflowForm').querySelector('[name="targetEmployeeId"]').innerHTML = '<option value="">Select (optional)</option>' + (emps.employees || []).filter(e => (e.EmploymentStatus || e.Status) === 'Active').map(e => `<option value="${e.EmployeeID}">${e.FirstName} ${e.LastName}</option>`).join('');
+    document.getElementById('workflowForm').addEventListener('submit', async (e) => {
+      e.preventDefault(); const p = Object.fromEntries(new FormData(e.target));
+      const d = await call('startWorkflow', STATE.token, p.templateId, p.targetEmployeeId);
+      if (!d.ok) return showToast(d.error, 'error'); showToast('Workflow started', 'success'); loadWorkflows();
+    });
+  }
+}
+
+async function completeWfStep(stepId) {
+  const d = await call('completeWorkflowStep', STATE.token, stepId, 'Completed', 'Done');
+  if (!d.ok) return showToast(d.error, 'error'); showToast('Task completed', 'success'); loadWorkflows();
+}
+
+// ===== ADVANCED ANALYTICS =====
+async function loadAnalytics() {
+  const content = document.getElementById('contentArea');
+  content.innerHTML = '<div class="flex-center" style="min-height:200px"><div class="spinner"></div></div>';
+  const data = await call('getAdvancedAnalytics', STATE.token);
+  
+  content.innerHTML = `
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-icon blue"><i class="fas fa-users"></i></div><div class="stat-info"><h4>${data.headcount?.active || 0}</h4><p>Active Employees</p></div></div>
+      <div class="stat-card"><div class="stat-icon green"><i class="fas fa-user-plus"></i></div><div class="stat-info"><h4>${data.headcount?.total || 0}</h4><p>Total Headcount</p></div></div>
+      <div class="stat-card"><div class="stat-icon red"><i class="fas fa-user-slash"></i></div><div class="stat-info"><h4>${data.headcount?.terminated || 0}</h4><p>Terminated</p></div></div>
+      <div class="stat-card"><div class="stat-icon orange"><i class="fas fa-money-check-alt"></i></div><div class="stat-info"><h4>₦${(data.salaryAvg || 0).toLocaleString()}</h4><p>Avg Basic Salary</p></div></div>
+    </div>
+    
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+      <div class="card"><div class="card-header"><h3>12-Month Trend</h3></div><div class="card-body">
+        <div style="display:flex;gap:4px;align-items:flex-end;height:180px;">
+          ${(data.monthlyTrend || []).map(m => {
+            const max = Math.max(...(data.monthlyTrend || []).map(x => Math.max(x.hires, x.terminations)), 1);
+            const hH = Math.round((m.hires / max) * 150);
+            const tH = Math.round((m.terminations / max) * 150);
+            return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;"><div style="display:flex;gap:2px;align-items:flex-end;height:150px;"><div style="width:14px;background:var(--success);border-radius:3px 3px 0 0;height:${hH}px;"></div><div style="width:14px;background:var(--danger);border-radius:3px 3px 0 0;height:${tH}px;"></div></div><div style="font-size:9px;color:var(--gray-500);">${m.month}</div></div>`;
+          }).join('')}
+        </div>
+        <div style="display:flex;gap:16px;margin-top:8px;font-size:12px;"><span><span style="display:inline-block;width:10px;height:10px;background:var(--success);border-radius:2px;margin-right:4px;"></span>Hires</span><span><span style="display:inline-block;width:10px;height:10px;background:var(--danger);border-radius:2px;margin-right:4px;"></span>Terminations</span></div>
+      </div></div>
+      
+      <div class="card"><div class="card-header"><h3>Department Distribution</h3></div><div class="card-body">
+        ${Object.entries(data.byDepartment || {}).map(([k, v]) => {
+          const pct = data.headcount?.active ? Math.round((v / data.headcount.active) * 100) : 0;
+          return `<div style="margin-bottom:10px;"><div style="display:flex;justify-content:space-between;font-size:13px;"><span>${k}</span><span>${v} (${pct}%)</span></div><div style="height:8px;background:var(--gray-200);border-radius:4px;margin-top:4px;"><div style="height:100%;width:${pct}%;background:var(--primary);border-radius:4px;"></div></div></div>`;
+        }).join('')}
+      </div></div>
+      
+      <div class="card"><div class="card-header"><h3>Gender Breakdown</h3></div><div class="card-body">
+        <div style="display:flex;gap:24px;justify-content:center;padding:20px;">
+          <div style="text-align:center;"><div style="font-size:36px;color:var(--primary);">${data.gender?.male || 0}</div><div style="color:var(--gray-500);">Male</div></div>
+          <div style="text-align:center;"><div style="font-size:36px;color:var(--danger);">${data.gender?.female || 0}</div><div style="color:var(--gray-500);">Female</div></div>
+        </div>
+      </div></div>
+      
+      <div class="card"><div class="card-header"><h3>Payroll Summary</h3></div><div class="card-body">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div style="padding:12px;background:var(--gray-50);border-radius:var(--radius);"><strong>Gross</strong><br>₦${(data.payroll?.totalGross || 0).toLocaleString()}</div>
+          <div style="padding:12px;background:var(--gray-50);border-radius:var(--radius);"><strong>Net</strong><br>₦${(data.payroll?.totalNet || 0).toLocaleString()}</div>
+          <div style="padding:12px;background:var(--gray-50);border-radius:var(--radius);"><strong>Deductions</strong><br>₦${(data.payroll?.totalDeductions || 0).toLocaleString()}</div>
+          <div style="padding:12px;background:var(--gray-50);border-radius:var(--radius);"><strong>Runs</strong><br>${data.payroll?.runs || 0}</div>
+        </div>
+      </div></div>
+    </div>
+  `;
+}
+
+// ===== MULTI-COMPANY =====
+async function loadCompanies() {
+  const content = document.getElementById('contentArea');
+  const [companiesData, branchesData] = await Promise.all([call('listCompanies', STATE.token), call('listBranches', STATE.token)]);
+  const companies = companiesData.companies || [];
+  const branches = branchesData || [];
+  
+  content.innerHTML = `
+    <div class="card mb-3"><div class="card-header"><h3>Add Company</h3></div><div class="card-body">
+      <form id="companyForm" class="employee-form">
+        <div class="form-group"><label>Company Name</label><input type="text" name="Name" required></div>
+        <div class="form-group"><label>Registration Number</label><input type="text" name="RegistrationNumber"></div>
+        <div class="form-group"><label>Address</label><input type="text" name="Address"></div>
+        <div class="form-group"><label>Phone</label><input type="tel" name="Phone"></div>
+        <div class="form-group"><label>Email</label><input type="email" name="Email"></div>
+        <div class="form-group"><label>Currency</label><select name="DefaultCurrency"><option value="NGN">NGN</option><option value="USD">USD</option><option value="GBP">GBP</option><option value="EUR">EUR</option></select></div>
+        <div style="grid-column:1/-1;"><button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save</button></div>
+      </form>
+    </div></div>
+    
+    <div class="card mb-3"><div class="card-header"><h3>Add Branch</h3></div><div class="card-body">
+      <form id="branchForm" class="employee-form">
+        <div class="form-group"><label>Company</label><select name="CompanyID" required><option value="">Select</option>${companies.map(c => `<option value="${c.CompanyID}">${c.Name || ''}</option>`).join('')}</select></div>
+        <div class="form-group"><label>Branch Name</label><input type="text" name="Name" required></div>
+        <div class="form-group"><label>Address</label><input type="text" name="Address"></div>
+        <div class="form-group"><label>State</label><input type="text" name="State"></div>
+        <div style="grid-column:1/-1;"><button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save</button></div>
+      </form>
+    </div></div>
+    
+    <div class="card"><div class="card-header"><h3>Companies & Branches</h3></div><div class="card-body">
+      ${companies.map(c => {
+        const cBranches = branches.filter(b => String(b.CompanyID) === String(c.CompanyID));
+        return `<div style="padding:16px;margin-bottom:16px;border:1px solid var(--gray-200);border-radius:var(--radius);"><h4>${c.Name || ''}</h4><p style="color:var(--gray-500);font-size:13px;">${c.Address || ''} • ${c.DefaultCurrency || 'NGN'}</p>${cBranches.length > 0 ? `<div style="margin-top:8px;">${cBranches.map(b => `<span class="pill pill-info" style="margin-right:4px;">${b.Name || ''}</span>`).join('')}</div>` : '<p style="color:var(--gray-400);font-size:12px;">No branches</p>'}</div>`;
+      }).join('')}
+      ${companies.length === 0 ? '<p style="color:var(--gray-500);">No companies added yet</p>' : ''}
+    </div></div>
+  `;
+  
+  document.getElementById('companyForm').addEventListener('submit', async (e) => {
+    e.preventDefault(); const p = Object.fromEntries(new FormData(e.target));
+    const d = await call('createCompany', STATE.token, p);
+    if (!d.ok) return showToast(d.error, 'error'); showToast('Company created', 'success'); loadCompanies();
+  });
+  document.getElementById('branchForm').addEventListener('submit', async (e) => {
+    e.preventDefault(); const p = Object.fromEntries(new FormData(e.target));
+    const d = await call('createBranch', STATE.token, p);
+    if (!d.ok) return showToast(d.error, 'error'); showToast('Branch created', 'success'); loadCompanies();
+  });
+}
+
+// ===== COMPLIANCE & POLICIES =====
+async function loadPolicies() {
+  const content = document.getElementById('contentArea');
+  const role = STATE.user?.role;
+  const isAdmin = ['Admin', 'HRBP'].includes(role);
+  
+  const data = await call('listPolicies', STATE.token);
+  const policies = data.policies || [];
+  
+  content.innerHTML = `
+    ${isAdmin ? `
+    <div class="card mb-3"><div class="card-header"><h3>Create Policy</h3></div><div class="card-body">
+      <form id="policyForm" class="employee-form">
+        <div class="form-group"><label>Title</label><input type="text" name="Title" required></div>
+        <div class="form-group"><label>Category</label><select name="Category"><option value="General">General</option><option value="HR">HR</option><option value="IT">IT</option><option value="Finance">Finance</option><option value="Safety">Safety</option><option value="Code of Conduct">Code of Conduct</option></select></div>
+        <div class="form-group"><label>Content</label><textarea name="Content" rows="4" required></textarea></div>
+        <div class="form-group"><label>Version</label><input type="text" name="Version" value="1.0"></div>
+        <div class="form-group"><label>Effective Date</label><input type="date" name="EffectiveDate"></div>
+        <div style="grid-column:1/-1;"><button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Publish Policy</button></div>
+      </form>
+    </div></div>
+    ` : ''}
+    
+    <div class="card"><div class="card-header"><h3>Company Policies (${policies.length})</h3></div><div class="card-body">
+      ${policies.map(p => `<div style="padding:16px;margin-bottom:12px;border:1px solid var(--gray-200);border-radius:var(--radius);">
+        <div style="display:flex;justify-content:space-between;align-items:start;">
+          <div><h4>${p.Title || ''}</h4><span class="pill pill-info">${p.Category || 'General'}</span> <span style="font-size:12px;color:var(--gray-500);">v${p.Version || '1.0'}</span></div>
+          ${!isAdmin ? `<button class="btn btn-sm btn-success" onclick="ackPolicy('${p.PolicyID}')"><i class="fas fa-check"></i> Acknowledge</button>` : ''}
+        </div>
+        <p style="margin-top:8px;color:var(--gray-600);font-size:14px;">${(p.Content || '').substring(0, 200)}${(p.Content || '').length > 200 ? '...' : ''}</p>
+        <div style="margin-top:8px;font-size:12px;color:var(--gray-500);">Effective: ${p.EffectiveDate || 'N/A'}</div>
+      </div>`).join('')}
+      ${policies.length === 0 ? '<p style="color:var(--gray-500);">No policies published yet</p>' : ''}
+    </div></div>
+  `;
+  
+  if (isAdmin) {
+    document.getElementById('policyForm').addEventListener('submit', async (e) => {
+      e.preventDefault(); const p = Object.fromEntries(new FormData(e.target));
+      const d = await call('createPolicy', STATE.token, p);
+      if (!d.ok) return showToast(d.error, 'error'); showToast('Policy published', 'success'); loadPolicies();
+    });
+  }
+}
+
+async function ackPolicy(policyId) {
+  const d = await call('acknowledgePolicy', STATE.token, policyId);
+  if (!d.ok) return showToast(d.error, 'error'); showToast('Policy acknowledged', 'success'); loadPolicies();
+}
+
+// ===== OKRs & PERFORMANCE REVIEWS =====
+async function loadOKRs() {
+  const content = document.getElementById('contentArea');
+  const role = STATE.user?.role;
+  const isAdmin = ['Admin', 'HRBP', 'Manager', 'Performance Manager'].includes(role);
+  
+  const data = await call('getMyOKRs', STATE.token);
+  const okrs = data || [];
+  
+  content.innerHTML = `
+    <div class="card mb-3"><div class="card-header"><h3>Add OKR</h3></div><div class="card-body">
+      <form id="okrForm" class="employee-form">
+        <div class="form-group"><label>Objective</label><input type="text" name="Objective" required placeholder="What do you want to achieve?"></div>
+        <div class="form-group"><label>Key Results</label><textarea name="KeyResults" rows="3" placeholder="Key result 1\nKey result 2\nKey result 3"></textarea></div>
+        <div class="form-group"><label>Quarter</label><select name="Quarter"><option value="Q1">Q1</option><option value="Q2">Q2</option><option value="Q3">Q3</option><option value="Q4">Q4</option></select></div>
+        <div class="form-group"><label>Year</label><input type="text" name="Year" value="${new Date().getFullYear()}"></div>
+        <div class="form-group"><label>Progress (%)</label><input type="number" name="Progress" min="0" max="100" value="0"></div>
+        <div style="grid-column:1/-1;"><button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save OKR</button></div>
+      </form>
+    </div></div>
+    
+    <div class="card"><div class="card-header"><h3>My OKRs (${okrs.length})</h3></div><div class="card-body">
+      ${okrs.map(o => {
+        let keyResults = [];
+        try { keyResults = JSON.parse(o.KeyResults || '[]'); } catch (e) {}
+        return `<div style="padding:16px;margin-bottom:12px;border:1px solid var(--gray-200);border-radius:var(--radius);">
+          <div style="display:flex;justify-content:space-between;align-items:start;">
+            <div><h4>${o.Objective || ''}</h4><span class="pill pill-info">${o.Quarter || ''} ${o.Year || ''}</span> <span class="pill ${o.Status === 'Completed' ? 'pill-success' : 'pill-warning'}">${o.Status || ''}</span></div>
+            <div style="text-align:right;"><div style="font-size:24px;font-weight:bold;color:var(--primary);">${o.Progress || 0}%</div></div>
+          </div>
+          <div style="margin-top:8px;height:8px;background:var(--gray-200);border-radius:4px;"><div style="height:100%;width:${o.Progress || 0}%;background:var(--primary);border-radius:4px;"></div></div>
+          ${keyResults.length > 0 ? `<ul style="margin-top:8px;font-size:13px;color:var(--gray-600);">${keyResults.map(kr => `<li>${kr}</li>`).join('')}</ul>` : ''}
+          ${o.ManagerComment ? `<p style="margin-top:8px;font-size:13px;color:var(--gray-500);"><strong>Manager:</strong> ${o.ManagerComment}</p>` : ''}
+        </div>`;
+      }).join('')}
+      ${okrs.length === 0 ? '<p style="color:var(--gray-500);">No OKRs set yet. Add your first objective!</p>' : ''}
+    </div></div>
+  `;
+  
+  document.getElementById('okrForm').addEventListener('submit', async (e) => {
+    e.preventDefault(); const p = Object.fromEntries(new FormData(e.target));
+    p.KeyResults = (p.KeyResults || '').split('\n').filter(k => k.trim());
+    const d = await call('saveOKR', STATE.token, p);
+    if (!d.ok) return showToast(d.error, 'error'); showToast('OKR saved', 'success'); loadOKRs();
+  });
+}
 
 // ===== Init =====
 (async function boot() {

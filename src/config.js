@@ -166,7 +166,22 @@ const SHEETS = {
   ENGAGEMENT_RESPONSES: 'Engagement_Responses',
   // Separation/Exit
   EXIT_INTERVIEWS: 'Exit_Interviews',
-  EXIT_CLEARANCE: 'Exit_Clearance'
+  EXIT_CLEARANCE: 'Exit_Clearance',
+  // Workflow Automation
+  WORKFLOW_TEMPLATES: 'Workflow_Templates',
+  WORKFLOW_INSTANCES: 'Workflow_Instances',
+  WORKFLOW_STEPS: 'Workflow_Steps',
+  // Multi-company
+  COMPANIES: 'Companies',
+  BRANCHES: 'Branches',
+  // Compliance & Policy
+  POLICIES: 'Company_Policies',
+  POLICY_ACK: 'Policy_Acknowledgements',
+  // Performance Reviews
+  OKRs: 'OKRs',
+  PEER_REVIEWS: 'Peer_Reviews',
+  // Analytics
+  ANALYTICS_CACHE: 'Analytics_Cache'
 };
 
 /** Canonical column order per table */
@@ -233,6 +248,21 @@ const SCHEMA = {
   // Separation/Exit
   Exit_Interviews: ['InterviewID', 'EmployeeID', 'InterviewerID', 'Questions', 'Answers', 'OverallRating', 'Recommendations', 'Status', 'CompletedAt', 'CreatedAt'],
   Exit_Clearance: ['ClearanceID', 'EmployeeID', 'Department', 'Task', 'Status', 'ClearedBy', 'ClearedAt', 'Notes', 'CreatedAt', 'UpdatedAt'],
+  // Workflow Automation
+  Workflow_Templates: ['TemplateID', 'Name', 'Type', 'Steps', 'Active', 'CreatedBy', 'CreatedAt', 'UpdatedAt'],
+  Workflow_Instances: ['InstanceID', 'TemplateID', 'InitiatorID', 'TargetEmployeeID', 'Status', 'CurrentStep', 'StartedAt', 'CompletedAt', 'CreatedAt'],
+  Workflow_Steps: ['StepID', 'InstanceID', 'StepName', 'AssignedTo', 'Status', 'Comment', 'CompletedAt', 'CreatedAt'],
+  // Multi-company
+  Companies: ['CompanyID', 'Name', 'RegistrationNumber', 'Address', 'Phone', 'Email', 'Logo', 'DefaultCurrency', 'Status', 'CreatedAt', 'UpdatedAt'],
+  Branches: ['BranchID', 'CompanyID', 'Name', 'Address', 'State', 'Phone', 'ManagerID', 'Status', 'CreatedAt', 'UpdatedAt'],
+  // Compliance & Policy
+  Company_Policies: ['PolicyID', 'Title', 'Category', 'Content', 'Version', 'EffectiveDate', 'ReviewDate', 'Status', 'CreatedBy', 'CreatedAt', 'UpdatedAt'],
+  Policy_Acknowledgements: ['AckID', 'PolicyID', 'EmployeeID', 'AcknowledgedAt', 'IpAddress'],
+  // Performance Reviews
+  OKRs: ['OKRID', 'EmployeeID', 'Objective', 'KeyResults', 'Quarter', 'Year', 'Progress', 'Status', 'ManagerComment', 'CreatedAt', 'UpdatedAt'],
+  Peer_Reviews: ['ReviewID', 'ReviewerID', 'RevieweeID', 'ReviewPeriod', 'Questions', 'Answers', 'OverallRating', 'Strengths', 'Improvements', 'Status', 'SubmittedAt'],
+  // Analytics Cache
+  Analytics_Cache: ['CacheID', 'ReportType', 'Filters', 'Data', 'GeneratedAt', 'ExpiresAt'],
   Org_Chart: ['EmployeeID', 'ManagerID', 'PositionTitle', 'Department', 'Active'],
   // Extra Google Sheets tabs
   ExportLog: ['LogID', 'ExportType', 'EmployeeID', 'RequestedBy', 'FileUrl', 'RecordCount', 'Status', 'CreatedAt'],
