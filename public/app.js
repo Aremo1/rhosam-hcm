@@ -5,6 +5,33 @@ const API = '/api';
 let STATE = { token: null, user: null, me: null };
 let currentRoute = 'dashboard';
 
+// ===== Input Validation Helpers =====
+function stripNonDigits(value) {
+  return value.replace(/[^0-9]/g, '');
+}
+
+function validatePhoneInput(input) {
+  const cleaned = stripNonDigits(input.value);
+  input.value = cleaned;
+  if (cleaned.length > 0 && cleaned.length < 7) {
+    input.setCustomValidity('Phone must be at least 7 digits');
+  } else if (cleaned.length > 15) {
+    input.setCustomValidity('Phone must not exceed 15 digits');
+  } else {
+    input.setCustomValidity('');
+  }
+}
+
+function validateNationalIDInput(input) {
+  const cleaned = stripNonDigits(input.value);
+  input.value = cleaned;
+  if (cleaned.length > 11) {
+    input.setCustomValidity('National ID must not exceed 11 digits');
+  } else {
+    input.setCustomValidity('');
+  }
+}
+
 // ===== API Helper =====
 async function call(fn, ...args) {
   const headers = { 'Content-Type': 'application/json' };
@@ -444,6 +471,11 @@ async function showCreateEmployee() {
       </div>
       
       <div class="form-group">
+        <label>Middle Name</label>
+        <input type="text" name="MiddleName">
+      </div>
+      
+      <div class="form-group">
         <label>Last Name</label>
         <input type="text" name="LastName" required>
       </div>
@@ -455,7 +487,7 @@ async function showCreateEmployee() {
       
       <div class="form-group">
         <label>Phone</label>
-        <input type="tel" name="Phone">
+        <input type="tel" name="Phone" pattern="[0-9]{7,15}" maxlength="15" title="Phone must be 7-15 digits only" oninput="validatePhoneInput(this)">
       </div>
       
       <div class="form-group">
@@ -474,7 +506,7 @@ async function showCreateEmployee() {
       
       <div class="form-group">
         <label>National ID</label>
-        <input type="text" name="NationalID" required>
+        <input type="text" name="NationalID" required pattern="[0-9]{1,11}" maxlength="11" title="National ID must be 1-11 digits only" oninput="validateNationalIDInput(this)">
       </div>
       
       <div class="section-title">Address</div>
@@ -649,12 +681,16 @@ async function editEmployee(id) {
         <input type="text" name="FirstName" value="${emp.FirstName || ''}" required>
       </div>
       <div class="form-group">
+        <label>Middle Name</label>
+        <input type="text" name="MiddleName" value="${emp.MiddleName || ''}">
+      </div>
+      <div class="form-group">
         <label>Last Name</label>
         <input type="text" name="LastName" value="${emp.LastName || ''}" required>
       </div>
       <div class="form-group">
         <label>Phone</label>
-        <input type="tel" name="Phone" value="${emp.Phone || ''}">
+        <input type="tel" name="Phone" value="${emp.Phone || ''}" pattern="[0-9]{7,15}" maxlength="15" title="Phone must be 7-15 digits only" oninput="validatePhoneInput(this)">
       </div>
       <div class="form-group">
         <label>Position</label>
@@ -888,7 +924,7 @@ async function editProfile() {
     <form id="editProfileForm" class="employee-form">
       <div class="form-group">
         <label>Phone</label>
-        <input type="tel" name="Phone" value="${emp.Phone || ''}">
+        <input type="tel" name="Phone" value="${emp.Phone || ''}" pattern="[0-9]{7,15}" maxlength="15" title="Phone must be 7-15 digits only" oninput="validatePhoneInput(this)">
       </div>
       <div class="form-group">
         <label>Residential Address</label>
@@ -2216,7 +2252,7 @@ async function showAddCandidate(requisitionId) {
       </div>
       <div class="form-group">
         <label>Phone</label>
-        <input type="tel" name="Phone">
+        <input type="tel" name="Phone" pattern="[0-9]{7,15}" maxlength="15" title="Phone must be 7-15 digits only" oninput="validatePhoneInput(this)">
       </div>
       <div class="form-group">
         <label>Source</label>

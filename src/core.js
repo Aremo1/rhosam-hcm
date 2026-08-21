@@ -137,9 +137,18 @@ function validateNationalID(nid) {
   return s;
 }
 
+function validatePhone(phone) {
+  if (!phone) return '';
+  const s = String(phone).trim().replace(/[^0-9]/g, '');
+  if (s.length > 15) throw new Error('Phone number must not exceed 15 digits (international standard)');
+  if (s.length > 0 && s.length < 7) throw new Error('Phone number must be at least 7 digits');
+  return s;
+}
+
 async function validateEmployeePayload(p, existingId) {
   const email = normalizeEmail(p.Email);
   const nid = validateNationalID(p.NationalID);
+  const phone = validatePhone(p.Phone);
   const first = norm(p.FirstName);
   const last = norm(p.LastName);
   const dob = norm(p.DOB || p.DateOfBirth);
@@ -184,7 +193,7 @@ async function createEmployee(token, p) {
     const e = {
       EmployeeID: id, Title: p.Title || '', FirstName: p.FirstName, MiddleName: p.MiddleName || '',
       LastName: p.LastName, DOB: p.DOB || p.DateOfBirth || '', Gender: p.Gender || '', MaritalStatus: p.MaritalStatus || '',
-      Email: normalizeEmail(p.Email), Phone: p.Phone || '', NationalID: validateNationalID(p.NationalID),
+      Email: normalizeEmail(p.Email), Phone: validatePhone(p.Phone), NationalID: validateNationalID(p.NationalID),
       Country: p.Country || APP.COUNTRY_DEFAULT, StateOfOrigin: p.StateOfOrigin || '', LGA: p.LGA || '',
       Address: p.Address || '', AddressState: p.AddressState || '', AddressLGA: p.AddressLGA || '',
       Department: p.Department || '', Position: p.Position || '', Location: p.Location || '',
@@ -209,6 +218,7 @@ async function updateEmployee(token, id, patch) {
     const ex = await findByIdAsync(SHEETS.EMP, 'EmployeeID', id);
     if (!ex) throw new Error('Employee not found');
     if (patch.NationalID) patch.NationalID = validateNationalID(patch.NationalID);
+    if (patch.Phone) patch.Phone = validatePhone(patch.Phone);
     if (patch.Email) patch.Email = normalizeEmail(patch.Email);
     patch.UpdatedAt = new Date().toISOString();
     await updateByIdAsync(SHEETS.EMP, 'EmployeeID', id, patch);
