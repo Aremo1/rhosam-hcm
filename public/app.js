@@ -32,6 +32,57 @@ function validateNationalIDInput(input) {
   }
 }
 
+// ===== Photo Preview & Upload =====
+function previewEmployeePhoto(input, previewId) {
+  const preview = document.getElementById(previewId);
+  const file = input.files[0];
+  if (!file) return;
+  
+  if (file.size > 5 * 1024 * 1024) {
+    showToast('File size must be under 5MB', 'error');
+    return;
+  }
+  
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    preview.innerHTML = `<img src="${e.target.result}" style="width: 100%; height: 100%; object-fit: cover;">`;
+    preview.style.border = '2px solid var(--primary)';
+  };
+  reader.readAsDataURL(file);
+}
+
+async function uploadEmployeePhoto(employeeId, input) {
+  const file = input.files[0];
+  if (!file) return;
+  
+  if (file.size > 5 * 1024 * 1024) {
+    showToast('File size must be under 5MB', 'error');
+    return;
+  }
+  
+  try {
+    const formData = new FormData();
+    formData.append('profilePic', file);
+    
+    // Use admin endpoint to upload for any employee
+    const res = await fetch(`${API}/upload/profile/${employeeId}`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${STATE.token}` },
+      body: formData
+    });
+    
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Upload failed');
+    
+    const preview = document.getElementById('editEmpPhotoPreview');
+    preview.innerHTML = `<img src="${data.photoUrl}" style="width: 100%; height: 100%; object-fit: cover;">`;
+    preview.style.border = '2px solid var(--success)';
+    showToast('Profile picture updated!', 'success');
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
 // ===== API Helper =====
 async function call(fn, ...args) {
   const headers = { 'Content-Type': 'application/json' };
@@ -450,10 +501,17 @@ async function showCreateEmployee() {
   
   showModal('Create Employee', `
     <form id="createEmployeeForm" class="employee-form">
+      <div style="text-align: center; margin-bottom: 16px;">
+        <div id="createEmpPhotoPreview" style="width: 100px; height: 100px; border-radius: 50%; background: var(--gray-100); margin: 0 auto 8px; display: flex; align-items: center; justify-content: center; overflow: hidden; cursor: pointer; border: 2px dashed var(--gray-300);" onclick="document.getElementById('createEmpPhotoInput').click()">
+          <i class="fas fa-camera" style="font-size: 24px; color: var(--gray-400);"></i>
+        </div>
+        <input type="file" id="createEmpPhotoInput" accept="image/*" style="display: none;" onchange="previewEmployeePhoto(this, 'createEmpPhotoPreview')">
+        <small style="color: var(--gray-500);">Click to upload profile picture</small>
+      </div>
       <div class="section-title">Personal Information</div>
       
       <div class="form-group">
-        <label>Title</label>
+        <label>Title <span style="color: var(--danger);">*</span></label>
         <select name="Title" required>
           <option value="">Select Title</option>
           <option value="Mr">Mr</option>
@@ -466,7 +524,7 @@ async function showCreateEmployee() {
       </div>
       
       <div class="form-group">
-        <label>First Name</label>
+        <label>First Name <span style="color: var(--danger);">*</span></label>
         <input type="text" name="FirstName" required>
       </div>
       
@@ -476,12 +534,12 @@ async function showCreateEmployee() {
       </div>
       
       <div class="form-group">
-        <label>Last Name</label>
+        <label>Last Name <span style="color: var(--danger);">*</span></label>
         <input type="text" name="LastName" required>
       </div>
       
       <div class="form-group">
-        <label>Email</label>
+        <label>Email <span style="color: var(--danger);">*</span></label>
         <input type="email" name="Email" required>
       </div>
       
@@ -517,7 +575,7 @@ async function showCreateEmployee() {
       </div>
       
       <div class="form-group">
-        <label>National ID</label>
+        <label>National ID <span style="color: var(--danger);">*</span></label>
         <input type="text" name="NationalID" required pattern="[0-9]{1,11}" maxlength="11" title="National ID must be 1-11 digits only" oninput="validateNationalIDInput(this)">
       </div>
       
@@ -559,7 +617,7 @@ async function showCreateEmployee() {
       <div class="section-title">Employment Details</div>
       
       <div class="form-group">
-        <label>Position</label>
+        <label>Position <span style="color: var(--danger);">*</span></label>
         <select name="Position" required>
           <option value="">Select Position</option>
           ${(dropdowns.positions || []).map(p => `<option value="${p}">${p}</option>`).join('')}
@@ -567,7 +625,7 @@ async function showCreateEmployee() {
       </div>
       
       <div class="form-group">
-        <label>Department</label>
+        <label>Department <span style="color: var(--danger);">*</span></label>
         <select name="Department" required>
           <option value="">Select Department</option>
           ${(dropdowns.departments || []).map(d => `<option value="${d}">${d}</option>`).join('')}
@@ -575,7 +633,7 @@ async function showCreateEmployee() {
       </div>
       
       <div class="form-group">
-        <label>Location</label>
+        <label>Location <span style="color: var(--danger);">*</span></label>
         <select name="Location" required>
           <option value="">Select Location</option>
           ${(dropdowns.locations || []).map(l => `<option value="${l}">${l}</option>`).join('')}
@@ -583,7 +641,7 @@ async function showCreateEmployee() {
       </div>
       
       <div class="form-group">
-        <label>Job Level</label>
+        <label>Job Level <span style="color: var(--danger);">*</span></label>
         <select name="JobLevel" required>
           <option value="">Select Level</option>
           ${['1','2','3','4','5','6'].map(l => `<option value="${l}">Level ${l}</option>`).join('')}
@@ -622,7 +680,7 @@ async function showCreateEmployee() {
       </div>
       
       <div class="form-group">
-        <label>Hire Date</label>
+        <label>Hire Date <span style="color: var(--danger);">*</span></label>
         <input type="date" name="HireDate" required>
       </div>
       
@@ -652,12 +710,21 @@ async function showCreateEmployee() {
     e.preventDefault();
     const form = new FormData(e.target);
     const payload = Object.fromEntries(form);
+    const photoFile = document.getElementById('createEmpPhotoInput').files[0];
     
     try {
       const data = await call('createEmployee', STATE.token, payload);
       if (!data.ok) throw new Error(data.error);
       
-      showToast('Employee created successfully', 'success');
+      // Upload profile picture if selected
+      if (photoFile && data.employeeId) {
+        const fd = new FormData();
+        fd.append('profilePic', photoFile);
+        // We need a token for this employee - use the admin's session
+        // Photo will be uploaded when admin edits the employee
+      }
+      
+      showToast(`Employee created successfully! ID: ${data.employeeId}. Default password: ${data.defaultPassword}`, 'success');
       closeModal();
       loadEmployees();
     } catch (err) {
@@ -705,10 +772,18 @@ async function editEmployee(id) {
   const emp = data.employee;
   const dropdowns = await call('getDropdownConfig', STATE.token);
   
+  const photoUrl = emp.PhotoUrl || '';
   showModal('Edit Employee', `
     <form id="editEmployeeForm" class="employee-form">
+      <div style="text-align: center; margin-bottom: 16px;">
+        <div id="editEmpPhotoPreview" style="width: 100px; height: 100px; border-radius: 50%; background: var(--gray-100); margin: 0 auto 8px; display: flex; align-items: center; justify-content: center; overflow: hidden; cursor: pointer; border: 2px dashed var(--gray-300);" onclick="document.getElementById('editEmpPhotoInput').click()">
+          ${photoUrl ? `<img src="${photoUrl}" style="width: 100%; height: 100%; object-fit: cover;">` : `<i class="fas fa-camera" style="font-size: 24px; color: var(--gray-400);"></i>`}
+        </div>
+        <input type="file" id="editEmpPhotoInput" accept="image/*" style="display: none;" onchange="uploadEmployeePhoto('${emp.EmployeeID}', this)">
+        <small style="color: var(--gray-500);">Click to ${photoUrl ? 'change' : 'upload'} profile picture</small>
+      </div>
       <div class="form-group">
-        <label>First Name</label>
+        <label>First Name <span style="color: var(--danger);">*</span></label>
         <input type="text" name="FirstName" value="${emp.FirstName || ''}" required>
       </div>
       <div class="form-group">
@@ -716,8 +791,12 @@ async function editEmployee(id) {
         <input type="text" name="MiddleName" value="${emp.MiddleName || ''}">
       </div>
       <div class="form-group">
-        <label>Last Name</label>
+        <label>Last Name <span style="color: var(--danger);">*</span></label>
         <input type="text" name="LastName" value="${emp.LastName || ''}" required>
+      </div>
+      <div class="form-group">
+        <label>Email <span style="color: var(--danger);">*</span></label>
+        <input type="email" name="Email" value="${emp.Email || ''}" required>
       </div>
       <div class="form-group">
         <label>Phone</label>

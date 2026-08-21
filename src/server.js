@@ -94,7 +94,7 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Profile picture upload
+// Profile picture upload (self)
 app.post('/api/upload/profile', upload.single('profilePic'), async (req, res) => {
   try {
     const token = req.headers.authorization?.replace('Bearer ', '');
@@ -113,6 +113,31 @@ app.post('/api/upload/profile', upload.single('profilePic'), async (req, res) =>
     res.json({ ok: true, photoUrl: dataUrl });
   } catch (err) {
     console.error('Upload error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Admin: Upload profile picture for any employee
+app.post('/api/upload/profile/:employeeId', upload.single('profilePic'), async (req, res) => {
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    if (!token) return res.status(401).json({ error: 'Unauthorized' });
+
+    const session = await core.getSession(token);
+    if (!session) return res.status(401).json({ error: 'Invalid session' });
+    if (!['Admin', 'HRBP'].includes(session.role)) return res.status(403).json({ error: 'Admin or HRBP role required' });
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+    const employeeId = req.params.employeeId;
+    const base64 = req.file.buffer.toString('base64');
+    const dataUrl = `data:${req.file.mimetype};base64,${base64}`;
+
+    const { _updateByIdAsync, SHEETS } = require('./globals');
+    await _updateByIdAsync(SHEETS.EMP, 'EmployeeID', employeeId, { PhotoUrl: dataUrl, UpdatedAt: new Date().toISOString() });
+
+    res.json({ ok: true, photoUrl: dataUrl });
+  } catch (err) {
+    console.error('Admin upload error:', err);
     res.status(500).json({ error: err.message });
   }
 });
