@@ -92,6 +92,18 @@ async function seedStatutoryDefaults() {
   for (const r of defaults) await appendRowAsync(SHEETS.STAT_CONFIG, r);
 }
 
+async function saveStatutoryConfig(token, key, value) {
+  await requireRole(token, ['Admin']);
+  const rows = await readRowsAsync(SHEETS.STAT_CONFIG);
+  const existing = rows.find(r => r.Key === key);
+  if (existing) {
+    await updateByIdAsync(SHEETS.STAT_CONFIG, 'Key', key, { Value: String(value), UpdatedAt: new Date().toISOString() });
+  } else {
+    await appendRowAsync(SHEETS.STAT_CONFIG, [key, String(value), '', 'TRUE']);
+  }
+  return { ok: true };
+}
+
 let _dropdownCache = null;
 async function getDropdownConfig() {
   if (_dropdownCache) return _dropdownCache;
@@ -1420,7 +1432,7 @@ function lockRun(fn) {
    ================================================================ */
 module.exports = {
   // System
-  initSystem, getDropdownConfig, seedStatutoryDefaults,
+  initSystem, getDropdownConfig, seedStatutoryDefaults, saveStatutoryConfig,
   // Auth
   login, getSession, logout, restoreSession, requireLogin, requireRole,
   requestPasswordReset, completePasswordReset, resetPassword,

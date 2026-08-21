@@ -2101,70 +2101,265 @@ async function loadLeave() {
 }
 
 // ===== Payroll =====
+let currentPayrollTab = 'overview';
+
 async function loadPayroll() {
   const content = document.getElementById('contentArea');
+  const role = STATE.user?.role;
+  const isAdmin = ['Admin', 'HRBP'].includes(role);
   
-  try {
-    const [salaryData, payslips] = await Promise.all([
-      call('getSalarySheet', STATE.token),
-      call('getMyPayslips', STATE.token)
-    ]);
+  content.innerHTML = `
+    <div class="tabs" style="margin-bottom: 24px;">
+      <button class="tab active" onclick="loadPayrollTab('overview', this)">Overview</button>
+      ${isAdmin ? `
+        <button class="tab" onclick="loadPayrollTab('salary', this)">Salary Setup</button>
+        <button class="tab" onclick="loadPayrollTab('process', this)">Process Payroll</button>
+        <button class="tab" onclick="loadPayrollTab('statutory', this)">Statutory Config</button>
+      ` : ''}
+      <button class="tab" onclick="loadPayrollTab('payslips', this)">My Payslips</button>
+    </div>
+    <div id="payrollContent"></div>
+  `;
+  loadPayrollTab('overview', document.querySelector('.tab.active'));
+}
+
+async function loadPayrollTab(tab, btn) {
+  document.querySelectorAll('.tabs .tab').forEach(t => t.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  currentPayrollTab = tab;
+  const container = document.getElementById('payrollContent');
+  container.innerHTML = '<div class="flex-center" style="min-height:100px"><div class="spinner"></div></div>';
+  
+  const role = STATE.user?.role;
+  const isAdmin = ['Admin', 'HRBP'].includes(role);
+  
+  if (tab === 'overview') {
+    try {
+      const [salaryData, payslips, dashboard] = await Promise.all([
+        call('getSalarySheet', STATE.token),
+        call('getMyPayslips', STATE.token),
+        isAdmin ? call('getPayrollDashboard', STATE.token) : Promise.resolve({})
+      ]);
+      
+      container.innerHTML = `
+        <div class="stats-grid">
+          ${isAdmin ? `
+            <div class="stat-card"><div class="stat-icon blue"><i class="fas fa-money-check-alt"></i></div><div class="stat-info"><h4>₦${(dashboard.gross || 0).toLocaleString()}</h4><p>Total Gross Pay</p></div></div>
+            <div class="stat-card"><div class="stat-icon green"><i class="fas fa-hand-holding-usd"></i></div><div class="stat-info"><h4>₦${(dashboard.net || 0).toLocaleString()}</h4><p>Total Net Pay</p></div></div>
+            <div class="stat-card"><div class="stat-icon red"><i class="fas fa-minus-circle"></i></div><div class="stat-info"><h4>₦${(dashboard.deductions || 0).toLocaleString()}</h4><p>Total Deductions</p></div></div>
+            <div class="stat-card"><div class="stat-icon orange"><i class="fas fa-file-invoice"></i></div><div class="stat-info"><h4>${dashboard.count || 0}</h4><p>Payroll Runs</p></div></div>
+          ` : `
+            <div class="stat-card"><div class="stat-icon blue"><i class="fas fa-money-check-alt"></i></div><div class="stat-info"><h4>₦${(salaryData.basicSalary || 0).toLocaleString()}</h4><p>Basic Salary</p></div></div>
+            <div class="stat-card"><div class="stat-icon green"><i class="fas fa-arrow-up"></i></div><div class="stat-info"><h4>₦${(salaryData.totalAllowances || 0).toLocaleString()}</h4><p>Total Allowances</p></div></div>
+            <div class="stat-card"><div class="stat-icon red"><i class="fas fa-arrow-down"></i></div><div class="stat-info"><h4>₦${(salaryData.totalDeductions || 0).toLocaleString()}</h4><p>Total Deductions</p></div></div>
+          `}
+        </div>
+        
+        <div class="card">
+          <div class="card-header"><h3>Recent Payslips</h3></div>
+          <div class="card-body">
+            <div class="table-container">
+              <table>
+                <thead><tr><th>Period</th><th>Gross Pay</th><th>Deductions</th><th>Net Pay</th></tr></thead>
+                <tbody>
+                  ${(payslips.payslips || []).slice(0, 10).map(p => `<tr><td>${p.Period || ''}</td><td>₦${(p.GrossPay || 0).toLocaleString()}</td><td>₦${(p.Deductions || 0).toLocaleString()}</td><td><strong>₦${(p.NetPay || 0).toLocaleString()}</strong></td></tr>`).join('')}
+                  ${(payslips.payslips || []).length === 0 ? '<tr><td colspan="4" style="text-align:center;color:var(--gray-500);">No payslips yet</td></tr>' : ''}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      `;
+    } catch (err) { container.innerHTML = `<div class="card"><div class="card-body"><p>Error: ${err.message}</p></div></div>`; }
     
-    content.innerHTML = `
-      <div class="stats-grid">
-        <div class="stat-card">
-          <div class="stat-icon blue"><i class="fas fa-money-check-alt"></i></div>
-          <div class="stat-info">
-            <h4>₦${(salaryData.basicSalary || 0).toLocaleString()}</h4>
-            <p>Basic Salary</p>
-          </div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon green"><i class="fas fa-arrow-up"></i></div>
-          <div class="stat-info">
-            <h4>₦${(salaryData.totalAllowances || 0).toLocaleString()}</h4>
-            <p>Total Allowances</p>
-          </div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon red"><i class="fas fa-arrow-down"></i></div>
-          <div class="stat-info">
-            <h4>₦${(salaryData.totalDeductions || 0).toLocaleString()}</h4>
-            <p>Total Deductions</p>
-          </div>
+  } else if (tab === 'salary' && isAdmin) {
+    const [employees, salaries] = await Promise.all([
+      call('listEmployees', STATE.token),
+      call('getSalarySheet', STATE.token)
+    ]);
+    const emps = (employees.employees || []).filter(e => (e.EmploymentStatus || e.Status) === 'Active');
+    const existingSalaries = salaries.salaries || [];
+    const salaryMap = {};
+    existingSalaries.forEach(s => { salaryMap[s.EmployeeID] = s; });
+    
+    container.innerHTML = `
+      <div class="card mb-3">
+        <div class="card-header"><h3>Set Up Employee Salary</h3></div>
+        <div class="card-body">
+          <form id="salarySetupForm" class="employee-form">
+            <div class="form-group"><label>Employee</label><select name="EmployeeID" id="salaryEmpSelect" required><option value="">Select Employee</option>${emps.map(e => `<option value="${e.EmployeeID}">${e.FirstName} ${e.LastName} (${e.EmployeeID})</option>`).join('')}</select></div>
+            <div class="form-group"><label>Pay Period (YYYY-MM)</label><input type="text" name="Period" placeholder="2026-08" required></div>
+            <div class="form-group"><label>Basic Salary (₦)</label><input type="number" name="Basic" min="0" required></div>
+            <div class="form-group"><label>Housing Allowance (₦)</label><input type="number" name="Housing" min="0" value="0"></div>
+            <div class="form-group"><label>Transport Allowance (₦)</label><input type="number" name="Transport" min="0" value="0"></div>
+            <div class="form-group"><label>Other Allowances (₦)</label><input type="number" name="OtherAllowances" min="0" value="0"></div>
+            <div class="form-group"><label>Currency</label><select name="Currency"><option value="NGN">NGN (Naira)</option><option value="USD">USD</option><option value="GBP">GBP</option><option value="EUR">EUR</option></select></div>
+            <div class="form-group"><label>Effective From</label><input type="date" name="EffectiveFrom"></div>
+            <div style="grid-column:1/-1;display:flex;gap:12px;justify-content:flex-end;margin-top:16px;">
+              <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save Salary</button>
+            </div>
+          </form>
         </div>
       </div>
       
       <div class="card">
-        <div class="card-header"><h3>Payslip History</h3></div>
+        <div class="card-header"><h3>Existing Salary Records</h3></div>
         <div class="card-body">
           <div class="table-container">
             <table>
-              <thead>
-                <tr>
-                  <th>Period</th>
-                  <th>Gross Pay</th>
-                  <th>Deductions</th>
-                  <th>Net Pay</th>
-                </tr>
-              </thead>
+              <thead><tr><th>Employee</th><th>Period</th><th>Basic</th><th>Housing</th><th>Transport</th><th>Other</th><th>Gross</th><th>Status</th></tr></thead>
               <tbody>
-                ${(payslips.payslips || []).map(p => `
-                  <tr>
-                    <td>${p.Period}</td>
-                    <td>₦${(p.GrossPay || 0).toLocaleString()}</td>
-                    <td>₦${(p.Deductions || 0).toLocaleString()}</td>
-                    <td><strong>₦${(p.NetPay || 0).toLocaleString()}</strong></td>
-                  </tr>
-                `).join('')}
+                ${existingSalaries.map(s => {
+                  const emp = emps.find(e => String(e.EmployeeID) === String(s.EmployeeID)) || {};
+                  const gross = Number(s.Basic || 0) + Number(s.Housing || 0) + Number(s.Transport || 0) + Number(s.OtherAllowances || 0);
+                  return `<tr><td>${emp.FirstName || ''} ${emp.LastName || ''}</td><td>${s.Period || ''}</td><td>₦${Number(s.Basic || 0).toLocaleString()}</td><td>₦${Number(s.Housing || 0).toLocaleString()}</td><td>₦${Number(s.Transport || 0).toLocaleString()}</td><td>₦${Number(s.OtherAllowances || 0).toLocaleString()}</td><td><strong>₦${gross.toLocaleString()}</strong></td><td><span class="pill ${s.Status === 'Active' ? 'pill-success' : 'pill-warning'}">${s.Status || 'Active'}</span></td></tr>`;
+                }).join('')}
+                ${existingSalaries.length === 0 ? '<tr><td colspan="8" style="text-align:center;color:var(--gray-500);">No salary records</td></tr>' : ''}
               </tbody>
             </table>
           </div>
         </div>
       </div>
     `;
-  } catch (err) {
-    content.innerHTML = `<div class="card"><div class="card-body"><p>Error: ${err.message}</p></div></div>`;
+    
+    document.getElementById('salarySetupForm').addEventListener('submit', async (e) => {
+      e.preventDefault(); const p = Object.fromEntries(new FormData(e.target));
+      try {
+        const d = await call('saveSalarySetup', STATE.token, p);
+        if (!d.ok) throw new Error(d.error);
+        showToast('Salary saved successfully', 'success');
+        loadPayrollTab('salary', btn);
+      } catch (err) { showToast(err.message, 'error'); }
+    });
+    
+  } else if (tab === 'process' && isAdmin) {
+    const dashboard = await call('getPayrollDashboard', STATE.token);
+    container.innerHTML = `
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-icon blue"><i class="fas fa-file-invoice"></i></div><div class="stat-info"><h4>${dashboard.count || 0}</h4><p>Total Payroll Runs</p></div></div>
+        <div class="stat-card"><div class="stat-icon green"><i class="fas fa-money-check-alt"></i></div><div class="stat-info"><h4>₦${(dashboard.gross || 0).toLocaleString()}</h4><p>Total Gross Pay</p></div></div>
+        <div class="stat-card"><div class="stat-icon red"><i class="fas fa-minus-circle"></i></div><div class="stat-info"><h4>₦${(dashboard.deductions || 0).toLocaleString()}</h4><p>Total Deductions</p></div></div>
+        <div class="stat-card"><div class="stat-icon green"><i class="fas fa-hand-holding-usd"></i></div><div class="stat-info"><h4>₦${(dashboard.net || 0).toLocaleString()}</h4><p>Total Net Pay</p></div></div>
+      </div>
+      
+      <div class="card mb-3">
+        <div class="card-header"><h3>Run Payroll</h3></div>
+        <div class="card-body">
+          <p style="color:var(--gray-600);margin-bottom:16px;">Process payroll for all employees with active salary records in the specified period.</p>
+          <form id="processPayrollForm" style="display:flex;gap:16px;align-items:flex-end;">
+            <div class="form-group" style="margin-bottom:0;flex:1;">
+              <label>Pay Period (YYYY-MM)</label>
+              <input type="text" id="payrollPeriod" placeholder="2026-08" required>
+            </div>
+            <button type="submit" class="btn btn-primary"><i class="fas fa-play"></i> Process Payroll</button>
+          </form>
+        </div>
+      </div>
+      
+      <div class="card">
+        <div class="card-header"><h3>Statutory Calculation Summary</h3></div>
+        <div class="card-body">
+          <p style="color:var(--gray-600);margin-bottom:12px;">Automatically calculated during payroll processing:</p>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px;">
+            <div style="padding:16px;background:var(--gray-50);border-radius:var(--radius);"><strong>PAYE (Pay As You Earn)</strong><br><small style="color:var(--gray-500);">Income tax based on Nigerian tax bands</small></div>
+            <div style="padding:16px;background:var(--gray-50);border-radius:var(--radius);"><strong>Pension (8%)</strong><br><small style="color:var(--gray-500);">Employee pension contribution</small></div>
+            <div style="padding:16px;background:var(--gray-50);border-radius:var(--radius);"><strong>NHF (2.5%)</strong><br><small style="color:var(--gray-500);">National Housing Fund contribution</small></div>
+          </div>
+        </div>
+      </div>
+    `;
+    
+    document.getElementById('processPayrollForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const period = document.getElementById('payrollPeriod').value.trim();
+      if (!period || !/^\d{4}-\d{2}$/.test(period)) return showToast('Period must be YYYY-MM format', 'error');
+      if (!confirm(`Process payroll for ${period}? This will calculate PAYE, pension, and NHF for all active employees.`)) return;
+      try {
+        const d = await call('processPayroll', STATE.token, period);
+        if (!d.ok) throw new Error(d.error);
+        showToast(`Payroll processed: ${d.processed} employees`, 'success');
+        loadPayrollTab('process', btn);
+      } catch (err) { showToast(err.message, 'error'); }
+    });
+    
+  } else if (tab === 'statutory' && isAdmin) {
+    let config = {};
+    try {
+      const rows = await call('getStatutoryConfig', STATE.token);
+      config = rows || {};
+    } catch (e) { /* use defaults */ }
+    
+    container.innerHTML = `
+      <div class="card mb-3">
+        <div class="card-header"><h3>Statutory Configuration (Nigeria)</h3></div>
+        <div class="card-body">
+          <form id="statutoryForm" class="employee-form">
+            <div class="section-title">Tax-Free Allowance</div>
+            <div class="form-group"><label>Annual Tax-Free Personal Relief (₦)</label><input type="number" name="TAX_FREE_ALLOWANCE" value="${config.TAX_FREE_ALLOWANCE || '300000'}" min="0"></div>
+            
+            <div class="section-title">PAYE Tax Bands</div>
+            <div class="form-group"><label>Band 1: Up to (₦)</label><input type="number" name="PAYE_BAND_1_LIMIT" value="${config.PAYE_BAND_1_LIMIT || '300000'}" min="0"></div>
+            <div class="form-group"><label>Band 1: Rate (%)</label><input type="number" name="PAYE_BAND_1_RATE" value="${config.PAYE_BAND_1_RATE || '0.07'}" min="0" max="1" step="0.01"></div>
+            <div class="form-group"><label>Band 2: Up to (₦)</label><input type="number" name="PAYE_BAND_2_LIMIT" value="${config.PAYE_BAND_2_LIMIT || '500000'}" min="0"></div>
+            <div class="form-group"><label>Band 2: Rate (%)</label><input type="number" name="PAYE_BAND_2_RATE" value="${config.PAYE_BAND_2_RATE || '0.11'}" min="0" max="1" step="0.01"></div>
+            <div class="form-group"><label>Band 3: Up to (₦)</label><input type="number" name="PAYE_BAND_3_LIMIT" value="${config.PAYE_BAND_3_LIMIT || '800000'}" min="0"></div>
+            <div class="form-group"><label>Band 3: Rate (%)</label><input type="number" name="PAYE_BAND_3_RATE" value="${config.PAYE_BAND_3_RATE || '0.15'}" min="0" max="1" step="0.01"></div>
+            <div class="form-group"><label>Above Band 3: Rate (%)</label><input type="number" name="PAYE_BAND_4_RATE" value="${config.PAYE_BAND_4_RATE || '0.18'}" min="0" max="1" step="0.01"></div>
+            
+            <div class="section-title">Contributions</div>
+            <div class="form-group"><label>Pension Rate (Employee %)</label><input type="number" name="PENSION_RATE" value="${config.PENSION_RATE || '0.08'}" min="0" max="1" step="0.01"></div>
+            <div class="form-group"><label>NHF Rate (%)</label><input type="number" name="NHF_RATE" value="${config.NHF_RATE || '0.025'}" min="0" max="1" step="0.001"></div>
+            
+            <div style="grid-column:1/-1;display:flex;gap:12px;justify-content:flex-end;margin-top:16px;">
+              <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save Configuration</button>
+            </div>
+          </form>
+        </div>
+      </div>
+      
+      <div class="card">
+        <div class="card-header"><h3>PAYE Calculation Example</h3></div>
+        <div class="card-body">
+          <p style="color:var(--gray-600);margin-bottom:12px;">How PAYE is calculated on annual income:</p>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div style="padding:12px;background:var(--gray-50);border-radius:var(--radius);"><strong>Band 1:</strong> First ₦${Number(config.PAYE_BAND_1_LIMIT || 300000).toLocaleString()} @ ${(Number(config.PAYE_BAND_1_RATE || 0.07) * 100).toFixed(0)}%</div>
+            <div style="padding:12px;background:var(--gray-50);border-radius:var(--radius);"><strong>Band 2:</strong> Next ₦${Number(config.PAYE_BAND_2_LIMIT || 500000).toLocaleString()} @ ${(Number(config.PAYE_BAND_2_RATE || 0.11) * 100).toFixed(0)}%</div>
+            <div style="padding:12px;background:var(--gray-50);border-radius:var(--radius);"><strong>Band 3:</strong> Next ₦${Number(config.PAYE_BAND_3_LIMIT || 800000).toLocaleString()} @ ${(Number(config.PAYE_BAND_3_RATE || 0.15) * 100).toFixed(0)}%</div>
+            <div style="padding:12px;background:var(--gray-50);border-radius:var(--radius);"><strong>Band 4:</strong> Above ₦${Number(config.PAYE_BAND_3_LIMIT || 800000).toLocaleString()} @ ${(Number(config.PAYE_BAND_4_RATE || 0.18) * 100).toFixed(0)}%</div>
+          </div>
+          <p style="color:var(--gray-500);font-size:12px;margin-top:12px;">Tax-free allowance of ₦${Number(config.TAX_FREE_ALLOWANCE || 300000).toLocaleString()} is deducted from annual gross before applying tax bands. Monthly PAYE = Annual PAYE ÷ 12.</p>
+        </div>
+      </div>
+    `;
+    
+    document.getElementById('statutoryForm').addEventListener('submit', async (e) => {
+      e.preventDefault(); const formData = Object.fromEntries(new FormData(e.target));
+      try {
+        for (const [key, value] of Object.entries(formData)) {
+          await call('saveStatutoryConfig', STATE.token, key, value);
+        }
+        showToast('Statutory configuration saved', 'success');
+      } catch (err) { showToast(err.message, 'error'); }
+    });
+    
+  } else if (tab === 'payslips') {
+    const payslips = await call('getMyPayslips', STATE.token);
+    container.innerHTML = `
+      <div class="card">
+        <div class="card-header"><h3>My Payslips</h3></div>
+        <div class="card-body">
+          <div class="table-container">
+            <table>
+              <thead><tr><th>Period</th><th>Gross Pay</th><th>Deductions</th><th>Net Pay</th></tr></thead>
+              <tbody>
+                ${(payslips.payslips || []).map(p => `<tr><td>${p.Period || ''}</td><td>₦${(p.GrossPay || 0).toLocaleString()}</td><td>₦${(p.Deductions || 0).toLocaleString()}</td><td><strong>₦${(p.NetPay || 0).toLocaleString()}</strong></td></tr>`).join('')}
+                ${(payslips.payslips || []).length === 0 ? '<tr><td colspan="4" style="text-align:center;color:var(--gray-500);">No payslips available yet. Payslips will appear after payroll is processed.</td></tr>' : ''}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    `;
   }
 }
 
