@@ -1312,6 +1312,43 @@ async function getWorkflow(token, type) {
 }
 
 /* ================================================================
+   EMPLOYEE DEPENDENTS
+   ================================================================ */
+async function saveEmployeeDependent(token, p) {
+  const me = await requireLogin(token);
+  const id = p.DependentID || uuid();
+  const empId = p.EmployeeID || me.employeeId;
+  if (me.role === 'Employee' && empId !== me.employeeId) throw new Error('Access denied');
+  if (p.DependentID) {
+    await updateByIdAsync(SHEETS.EMP_DEPENDENTS, 'DependentID', id, {
+      FullName: p.FullName || '', Relationship: p.Relationship || '', DateOfBirth: p.DateOfBirth || '',
+      Gender: p.Gender || '', Phone: p.Phone || '', IsEmergencyContact: p.IsEmergencyContact || 'FALSE',
+      UpdatedAt: new Date().toISOString()
+    });
+  } else {
+    await appendRowAsync(SHEETS.EMP_DEPENDENTS, [
+      id, empId, p.FullName || '', p.Relationship || '', p.DateOfBirth || '',
+      p.Gender || '', p.Phone || '', p.IsEmergencyContact || 'FALSE',
+      new Date().toISOString(), new Date().toISOString()
+    ]);
+  }
+  return { ok: true, dependentId: id };
+}
+
+async function getEmployeeDependents(token, employeeId) {
+  const me = await requireLogin(token);
+  const eid = employeeId || me.employeeId;
+  const rows = await readRowsAsync(SHEETS.EMP_DEPENDENTS);
+  return rows.filter(r => String(r.EmployeeID) === String(eid));
+}
+
+async function deleteEmployeeDependent(token, dependentId) {
+  await requireLogin(token);
+  await updateByIdAsync(SHEETS.EMP_DEPENDENTS, 'DependentID', dependentId, { DeletedAt: new Date().toISOString() });
+  return { ok: true };
+}
+
+/* ================================================================
    EMAIL NOTIFICATIONS
    ================================================================ */
 async function sendBirthdayReminders() {
@@ -1422,6 +1459,7 @@ module.exports = {
   saveEmployeeSkill, getEmployeeSkills, deleteEmployeeSkill,
   saveEmployeeCertification, getEmployeeCertifications, deleteEmployeeCertification,
   saveEmployeeWorkHistory, getEmployeeWorkHistory, deleteEmployeeWorkHistory,
+  saveEmployeeDependent, getEmployeeDependents, deleteEmployeeDependent,
   // Email notifications
   sendBirthdayReminders, checkProbationReviews,
   // Permissions

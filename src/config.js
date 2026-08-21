@@ -140,6 +140,7 @@ const SHEETS = {
   EMP_SKILLS: 'Employee_Skills',
   EMP_CERTS: 'Employee_Certifications',
   EMP_WORK: 'Employee_WorkHistory',
+  EMP_DEPENDENTS: 'Employee_Dependents',
   APPRAISAL_FEEDBACK: 'Appraisal_Feedback',
   // Extra Google Sheets tabs
   EXPORT_LOG: 'ExportLog',
@@ -155,7 +156,7 @@ const SHEETS = {
 /** Canonical column order per table */
 const SCHEMA = {
   Users: ['UserID', 'EmployeeID', 'Email', 'PasswordHash', 'Salt', 'Role', 'Status', 'MustChangePassword', 'LastLogin', 'CreatedAt', 'UpdatedAt'],
-  Employees: ['EmployeeID', 'Title', 'FirstName', 'MiddleName', 'LastName', 'DOB', 'Gender', 'MaritalStatus', 'Religion', 'Email', 'Phone', 'NationalID', 'Country', 'StateOfOrigin', 'LGA', 'Address', 'AddressState', 'AddressLGA', 'EmergencyContactName', 'EmergencyContactPhone', 'NextOfKin', 'NextOfKinPhone', 'NextOfKinRelationship', 'BankName', 'BankAccountNumber', 'BankAccountName', 'Department', 'Position', 'Location', 'JobLevel', 'Grade', 'JobTitle', 'ManagerID', 'Role', 'EmploymentStatus', 'HireDate', 'TerminationDate', 'PhotoFileId', 'PhotoUrl', 'CreatedAt', 'UpdatedAt'],
+  Employees: ['EmployeeID', 'Title', 'FirstName', 'MiddleName', 'LastName', 'DOB', 'Gender', 'MaritalStatus', 'Religion', 'Email', 'Phone', 'NationalID', 'IDType', 'IDIssuingState', 'IDExpiryDate', 'Country', 'StateOfOrigin', 'LGA', 'Address', 'AddressState', 'AddressLGA', 'EmergencyContactName', 'EmergencyContactPhone', 'NextOfKin', 'NextOfKinPhone', 'NextOfKinRelationship', 'NextOfKinAddress', 'BankName', 'BankAccountNumber', 'BankAccountName', 'BloodGroup', 'Genotype', 'Allergies', 'HealthInsuranceProvider', 'HealthInsuranceID', 'LinkedInUrl', 'TwitterUrl', 'PortfolioUrl', 'PersonalStatement', 'Department', 'Position', 'Location', 'JobLevel', 'Grade', 'JobTitle', 'ManagerID', 'Role', 'EmploymentStatus', 'HireDate', 'TerminationDate', 'PhotoFileId', 'PhotoUrl', 'CreatedAt', 'UpdatedAt'],
   Config: ['Key', 'Value', 'Category', 'Active'],
   State_LGA_Config: ['State', 'LGA', 'Active'],
   Departments: ['Department', 'Active'],
@@ -199,6 +200,7 @@ const SCHEMA = {
   Employee_Skills: ['SkillID', 'EmployeeID', 'SkillName', 'Proficiency', 'YearsOfExperience', 'CreatedAt', 'UpdatedAt'],
   Employee_Certifications: ['CertificationID', 'EmployeeID', 'CertName', 'IssuingBody', 'IssueDate', 'ExpiryDate', 'CredentialID', 'Status', 'CreatedAt', 'UpdatedAt'],
   Employee_WorkHistory: ['HistoryID', 'EmployeeID', 'CompanyName', 'Position', 'StartDate', 'EndDate', 'ReasonForLeaving', 'CreatedAt', 'UpdatedAt'],
+  Employee_Dependents: ['DependentID', 'EmployeeID', 'FullName', 'Relationship', 'DateOfBirth', 'Gender', 'Phone', 'IsEmergencyContact', 'CreatedAt', 'UpdatedAt'],
   Org_Chart: ['EmployeeID', 'ManagerID', 'PositionTitle', 'Department', 'Active'],
   // Extra Google Sheets tabs
   ExportLog: ['LogID', 'ExportType', 'EmployeeID', 'RequestedBy', 'FileUrl', 'RecordCount', 'Status', 'CreatedAt'],

@@ -750,6 +750,113 @@ async function showCreateEmployee() {
         </select>
       </div>
       
+      <div class="form-group">
+        <label>Next of Kin Address</label>
+        <input type="text" name="NextOfKinAddress" placeholder="Full address">
+      </div>
+      
+      <div class="section-title">ID Document Details</div>
+      
+      <div class="form-group">
+        <label>ID Type</label>
+        <select name="IDType">
+          <option value="">Select</option>
+          <option value="BVN">BVN (Bank Verification Number)</option>
+          <option value="NIN">NIN (National Identification Number)</option>
+          <option value="Voter Card">Voter's Card</option>
+          <option value="International Passport">International Passport</option>
+          <option value="Driver License">Driver's License</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+      
+      <div class="form-group">
+        <label>ID Issuing State/Country</label>
+        <input type="text" name="IDIssuingState" placeholder="e.g. Lagos, Nigeria">
+      </div>
+      
+      <div class="form-group">
+        <label>ID Expiry Date</label>
+        <input type="date" name="IDExpiryDate">
+      </div>
+      
+      <div class="section-title">Medical / Health Information</div>
+      
+      <div class="form-group">
+        <label>Blood Group</label>
+        <select name="BloodGroup">
+          <option value="">Select</option>
+          <option value="A+">A+</option>
+          <option value="A-">A-</option>
+          <option value="B+">B+</option>
+          <option value="B-">B-</option>
+          <option value="AB+">AB+</option>
+          <option value="AB-">AB-</option>
+          <option value="O+">O+</option>
+          <option value="O-">O-</option>
+        </select>
+      </div>
+      
+      <div class="form-group">
+        <label>Genotype</label>
+        <select name="Genotype">
+          <option value="">Select</option>
+          <option value="AA">AA</option>
+          <option value="AS">AS</option>
+          <option value="AC">AC</option>
+          <option value="SS">SS</option>
+          <option value="SC">SC</option>
+        </select>
+      </div>
+      
+      <div class="form-group">
+        <label>Known Allergies</label>
+        <input type="text" name="Allergies" placeholder="e.g. Penicillin, Peanuts (comma-separated)">
+      </div>
+      
+      <div class="form-group">
+        <label>Health Insurance Provider</label>
+        <select name="HealthInsuranceProvider">
+          <option value="">Select</option>
+          <option value="NHIS">NHIS</option>
+          <option value="Hygeia">Hygeia HMO</option>
+          <option value="Leadway">Leadway Health</option>
+          <option value="Mediplan">Mediplan</option>
+          <option value="Reddington">Reddington Hospital</option>
+          <option value="Total Health Trust">Total Health Trust</option>
+          <option value="Reliance HMO">Reliance HMO</option>
+          <option value="AXA Mansard">AXA Mansard</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+      
+      <div class="form-group">
+        <label>Health Insurance ID</label>
+        <input type="text" name="HealthInsuranceID" placeholder="Insurance member ID">
+      </div>
+      
+      <div class="section-title">Online Presence / Social Media</div>
+      
+      <div class="form-group">
+        <label>LinkedIn Profile</label>
+        <input type="url" name="LinkedInUrl" placeholder="https://linkedin.com/in/username">
+      </div>
+      
+      <div class="form-group">
+        <label>Twitter / X Handle</label>
+        <input type="text" name="TwitterUrl" placeholder="@username">
+      </div>
+      
+      <div class="form-group">
+        <label>Portfolio / Website</label>
+        <input type="url" name="PortfolioUrl" placeholder="https://yourwebsite.com">
+      </div>
+      
+      <div class="form-group" style="grid-column: 1 / -1;">
+        <label>Personal Statement / Bio</label>
+        <textarea name="PersonalStatement" rows="3" placeholder="Brief professional summary..."></textarea>
+      </div>
+      
       <div class="section-title">Bank Details</div>
       
       <div class="form-group">
@@ -963,6 +1070,30 @@ async function viewEmployee(id) {
       <div><strong>Relationship:</strong> ${emp.NextOfKinRelationship || '-'}</div>
     </div>
     
+    <div class="section-title" style="padding: 0 24px;">ID Document Details</div>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 0 24px 24px;">
+      <div><strong>ID Type:</strong> ${emp.IDType || '-'}</div>
+      <div><strong>ID Issuing State/Country:</strong> ${emp.IDIssuingState || '-'}</div>
+      <div><strong>ID Expiry Date:</strong> ${emp.IDExpiryDate || '-'}</div>
+    </div>
+    
+    <div class="section-title" style="padding: 0 24px;">Medical / Health</div>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 0 24px 24px;">
+      <div><strong>Blood Group:</strong> ${emp.BloodGroup || '-'}</div>
+      <div><strong>Genotype:</strong> ${emp.Genotype || '-'}</div>
+      <div><strong>Allergies:</strong> ${emp.Allergies || '-'}</div>
+      <div><strong>Health Insurance:</strong> ${emp.HealthInsuranceProvider || '-'}</div>
+      <div><strong>Insurance ID:</strong> ${emp.HealthInsuranceID || '-'}</div>
+    </div>
+    
+    <div class="section-title" style="padding: 0 24px;">Online Presence</div>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 0 24px 24px;">
+      <div><strong>LinkedIn:</strong> ${emp.LinkedInUrl ? `<a href="${emp.LinkedInUrl}" target="_blank">${emp.LinkedInUrl}</a>` : '-'}</div>
+      <div><strong>Twitter/X:</strong> ${emp.TwitterUrl || '-'}</div>
+      <div><strong>Portfolio:</strong> ${emp.PortfolioUrl ? `<a href="${emp.PortfolioUrl}" target="_blank">${emp.PortfolioUrl}</a>` : '-'}</div>
+      <div style="grid-column: 1 / -1;"><strong>Bio:</strong> ${emp.PersonalStatement || '-'}</div>
+    </div>
+    
     <div class="section-title" style="padding: 0 24px;">Bank Details</div>
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 0 24px 24px;">
       <div><strong>Bank Name:</strong> ${emp.BankName || '-'}</div>
@@ -1097,6 +1228,76 @@ async function editEmployee(id) {
           <option value="">Select</option>
           ${['Spouse','Parent','Sibling','Child','Other'].map(r => `<option value="${r}" ${r === emp.NextOfKinRelationship ? 'selected' : ''}>${r}</option>`).join('')}
         </select>
+      </div>
+      <div class="form-group">
+        <label>Next of Kin Address</label>
+        <input type="text" name="NextOfKinAddress" value="${emp.NextOfKinAddress || ''}" placeholder="Full address">
+      </div>
+      
+      <div class="section-title">ID Document Details</div>
+      <div class="form-group">
+        <label>ID Type</label>
+        <select name="IDType">
+          <option value="">Select</option>
+          ${['BVN','NIN','Voter Card','International Passport','Driver License','Other'].map(t => `<option value="${t}" ${t === emp.IDType ? 'selected' : ''}>${t}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>ID Issuing State/Country</label>
+        <input type="text" name="IDIssuingState" value="${emp.IDIssuingState || ''}" placeholder="e.g. Lagos, Nigeria">
+      </div>
+      <div class="form-group">
+        <label>ID Expiry Date</label>
+        <input type="date" name="IDExpiryDate" value="${emp.IDExpiryDate || ''}">
+      </div>
+      
+      <div class="section-title">Medical / Health Information</div>
+      <div class="form-group">
+        <label>Blood Group</label>
+        <select name="BloodGroup">
+          <option value="">Select</option>
+          ${['A+','A-','B+','B-','AB+','AB-','O+','O-'].map(b => `<option value="${b}" ${b === emp.BloodGroup ? 'selected' : ''}>${b}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Genotype</label>
+        <select name="Genotype">
+          <option value="">Select</option>
+          ${['AA','AS','AC','SS','SC'].map(g => `<option value="${g}" ${g === emp.Genotype ? 'selected' : ''}>${g}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Known Allergies</label>
+        <input type="text" name="Allergies" value="${emp.Allergies || ''}" placeholder="e.g. Penicillin, Peanuts">
+      </div>
+      <div class="form-group">
+        <label>Health Insurance Provider</label>
+        <select name="HealthInsuranceProvider">
+          <option value="">Select</option>
+          ${['NHIS','Hygeia','Leadway','Mediplan','Reddington','Total Health Trust','Reliance HMO','AXA Mansard','Other'].map(h => `<option value="${h}" ${h === emp.HealthInsuranceProvider ? 'selected' : ''}>${h}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Health Insurance ID</label>
+        <input type="text" name="HealthInsuranceID" value="${emp.HealthInsuranceID || ''}" placeholder="Insurance member ID">
+      </div>
+      
+      <div class="section-title">Online Presence</div>
+      <div class="form-group">
+        <label>LinkedIn Profile</label>
+        <input type="url" name="LinkedInUrl" value="${emp.LinkedInUrl || ''}" placeholder="https://linkedin.com/in/username">
+      </div>
+      <div class="form-group">
+        <label>Twitter / X Handle</label>
+        <input type="text" name="TwitterUrl" value="${emp.TwitterUrl || ''}" placeholder="@username">
+      </div>
+      <div class="form-group">
+        <label>Portfolio / Website</label>
+        <input type="url" name="PortfolioUrl" value="${emp.PortfolioUrl || ''}" placeholder="https://yourwebsite.com">
+      </div>
+      <div class="form-group" style="grid-column: 1 / -1;">
+        <label>Personal Statement / Bio</label>
+        <textarea name="PersonalStatement" rows="3">${emp.PersonalStatement || ''}</textarea>
       </div>
       
       <div class="section-title">Bank Details</div>
@@ -1238,6 +1439,7 @@ async function loadProfile() {
         <button class="tab" onclick="loadProfileTab('skills', this)">Skills</button>
         <button class="tab" onclick="loadProfileTab('certifications', this)">Certifications</button>
         <button class="tab" onclick="loadProfileTab('workhistory', this)">Work History</button>
+        <button class="tab" onclick="loadProfileTab('dependents', this)">Dependents</button>
       </div>
       <div class="card-body" id="profileTabContent">
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px;">
@@ -1318,6 +1520,18 @@ async function loadProfileTab(tab, btn) {
       ${(work || []).length === 0 ? '<p style="color:var(--gray-500);">No work history added yet.</p>' : ''}
       <table><thead><tr><th>Company</th><th>Position</th><th>Start</th><th>End</th><th>Reason for Leaving</th><th>Actions</th></tr></thead><tbody>
       ${(work || []).map(w => `<tr><td>${w.CompanyName || ''}</td><td>${w.Position || ''}</td><td>${w.StartDate || ''}</td><td>${w.EndDate || ''}</td><td>${w.ReasonForLeaving || ''}</td><td><button class="btn btn-sm btn-danger" onclick="deleteWorkHistory('${w.HistoryID}')"><i class="fas fa-trash"></i></button></td></tr>`).join('')}
+      </tbody></table>
+    `;
+  } else if (tab === 'dependents') {
+    const deps = await call('getEmployeeDependents', STATE.token, empId);
+    container.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <h4>Dependents</h4>
+        <button class="btn btn-sm btn-primary" onclick="showAddDependent()"><i class="fas fa-plus"></i> Add Dependent</button>
+      </div>
+      ${(deps || []).length === 0 ? '<p style="color:var(--gray-500);">No dependents added yet.</p>' : ''}
+      <table><thead><tr><th>Name</th><th>Relationship</th><th>DOB</th><th>Gender</th><th>Phone</th><th>Emergency</th><th>Actions</th></tr></thead><tbody>
+      ${(deps || []).map(d => `<tr><td>${d.FullName || ''}</td><td>${d.Relationship || ''}</td><td>${d.DateOfBirth || ''}</td><td>${d.Gender || ''}</td><td>${d.Phone || ''}</td><td>${d.IsEmergencyContact === 'TRUE' ? '<span class="pill pill-success">Yes</span>' : 'No'}</td><td><button class="btn btn-sm btn-danger" onclick="deleteDependent('${d.DependentID}')"><i class="fas fa-trash"></i></button></td></tr>`).join('')}
       </tbody></table>
     `;
   }
@@ -1409,6 +1623,29 @@ async function showAddWorkHistory() {
   });
 }
 async function deleteWorkHistory(id) { if (!confirm('Delete?')) return; await call('deleteEmployeeWorkHistory', STATE.token, id); loadProfileTab('workhistory', document.querySelector('.tab.active')); }
+
+async function showAddDependent() {
+  showModal('Add Dependent', `
+    <form id="addDepForm" class="employee-form">
+      <div class="form-group"><label>Full Name</label><input type="text" name="FullName" required></div>
+      <div class="form-group"><label>Relationship</label><select name="Relationship" required><option value="">Select</option><option value="Spouse">Spouse</option><option value="Child">Child</option><option value="Parent">Parent</option><option value="Sibling">Sibling</option><option value="Other">Other</option></select></div>
+      <div class="form-group"><label>Date of Birth</label><input type="date" name="DateOfBirth"></div>
+      <div class="form-group"><label>Gender</label><select name="Gender"><option value="">Select</option><option value="Male">Male</option><option value="Female">Female</option></select></div>
+      <div class="form-group"><label>Phone</label><input type="tel" name="Phone" pattern="[0-9]{7,15}" maxlength="15" oninput="validatePhoneInput(this)"></div>
+      <div class="form-group"><label>Emergency Contact?</label><select name="IsEmergencyContact"><option value="FALSE">No</option><option value="TRUE">Yes</option></select></div>
+      <div style="grid-column:1/-1;display:flex;gap:12px;justify-content:flex-end;margin-top:16px;">
+        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save</button>
+      </div>
+    </form>
+  `);
+  document.getElementById('addDepForm').addEventListener('submit', async (e) => {
+    e.preventDefault(); const p = Object.fromEntries(new FormData(e.target));
+    const d = await call('saveEmployeeDependent', STATE.token, p);
+    if (!d.ok) return showToast(d.error, 'error'); showToast('Dependent added', 'success'); closeModal(); loadProfileTab('dependents', document.querySelector('.tab.active'));
+  });
+}
+async function deleteDependent(id) { if (!confirm('Delete this dependent?')) return; await call('deleteEmployeeDependent', STATE.token, id); loadProfileTab('dependents', document.querySelector('.tab.active')); }
 
 async function uploadPhoto(input) {
   const file = input.files[0];
