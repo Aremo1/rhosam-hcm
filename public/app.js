@@ -156,8 +156,15 @@ async function enterApp() {
   document.getElementById('appContainer').style.display = 'flex';
   
   // Update user info
-  document.getElementById('userName').textContent = STATE.me ? `${STATE.me.FirstName} ${STATE.me.LastName}` : STATE.user?.email;
+  const fullName = STATE.me ? `${STATE.me.FirstName} ${STATE.me.LastName}` : STATE.user?.email;
+  document.getElementById('userName').textContent = fullName;
   document.getElementById('userRole').textContent = STATE.user?.role || 'Employee';
+  
+  // Top bar avatar
+  const topBarName = document.getElementById('topBarUserName');
+  const topBarAvatar = document.getElementById('topBarAvatar');
+  if (topBarName) topBarName.textContent = fullName;
+  if (topBarAvatar && STATE.me?.PhotoUrl) topBarAvatar.src = STATE.me.PhotoUrl;
   
   if (STATE.me?.PhotoUrl) {
     document.getElementById('userAvatar').src = STATE.me.PhotoUrl;
@@ -170,7 +177,11 @@ async function enterApp() {
       if (profile.ok) {
         STATE.me = { ...STATE.me, ...profile.employee };
         document.getElementById('userName').textContent = profile.employee ? `${profile.employee.FirstName} ${profile.employee.LastName}` : STATE.user?.email;
-        if (profile.employee?.PhotoUrl) document.getElementById('userAvatar').src = profile.employee.PhotoUrl;
+        if (profile.employee?.PhotoUrl) {
+          document.getElementById('userAvatar').src = profile.employee.PhotoUrl;
+          const tba = document.getElementById('topBarAvatar');
+          if (tba) tba.src = profile.employee.PhotoUrl;
+        }
       }
     } catch (e) { /* continue with session data */ }
   }
@@ -323,6 +334,11 @@ function navigateTo(route) {
 }
 
 async function loadRoute(route) {
+  // Stop chat polling when leaving chat
+  if (currentRoute === 'chat' && route !== 'chat' && chatPollTimer) {
+    clearInterval(chatPollTimer);
+    chatPollTimer = null;
+  }
   const content = document.getElementById('contentArea');
   content.innerHTML = '<div class="flex-center" style="min-height:200px"><div class="spinner"></div></div>';
   
@@ -353,18 +369,65 @@ async function loadRoute(route) {
 }
 
 // ===== Dashboard =====
+let dashboardData = null;
+let dashboardFilters = {};
+
 async function loadDashboard() {
   const data = await call('getDashboardData', STATE.token);
   const content = document.getElementById('contentArea');
   
   if (!data.ok) throw new Error(data.error);
-  
+  dashboardData = data;
+  renderDashboard(data);
+}
+
+function renderDashboard(data) {
+  const content = document.getElementById('contentArea');
   const stats = data.stats || {};
   const role = STATE.user?.role;
+  const employees = data.employees || [];
+  const dropdowns = data.dropdowns || {};
+  
+  // Apply dashboard filters
+  let filteredEmps = [...employees];
+  if (dashboardFilters.department) filteredEmps = filteredEmps.filter(e => e.Department === dashboardFilters.department);
+  if (dashboardFilters.jobLevel) filteredEmps = filteredEmps.filter(e => String(e.JobLevel) === dashboardFilters.jobLevel);
+  if (dashboardFilters.grade) filteredEmps = filteredEmps.filter(e => e.Grade === dashboardFilters.grade);
+  if (dashboardFilters.location) filteredEmps = filteredEmps.filter(e => e.Location === dashboardFilters.location);
+  if (dashboardFilters.gender) filteredEmps = filteredEmps.filter(e => String(e.Gender).toLowerCase() === dashboardFilters.gender.toLowerCase());
+  
+  const isAdminHr = role === 'Admin' || role === 'HRBP';
   
   content.innerHTML = `
+    ${isAdminHr ? `
+    <div class="dashboard-filters">
+      <select onchange="applyDashboardFilter('department', this.value)">
+        <option value="">All Departments</option>
+        ${(dropdowns.departments || []).map(d => `<option value="${d}" ${dashboardFilters.department === d ? 'selected' : ''}>${d}</option>`).join('')}
+      </select>
+      <select onchange="applyDashboardFilter('jobLevel', this.value)">
+        <option value="">All Job Levels</option>
+        ${(dropdowns.jobLevels || []).map(l => `<option value="${l}" ${dashboardFilters.jobLevel === l ? 'selected' : ''}>${l}</option>`).join('')}
+      </select>
+      <select onchange="applyDashboardFilter('grade', this.value)">
+        <option value="">All Grades</option>
+        ${(dropdowns.grades || []).map(g => `<option value="${g}" ${dashboardFilters.grade === g ? 'selected' : ''}>${g}</option>`).join('')}
+      </select>
+      <select onchange="applyDashboardFilter('location', this.value)">
+        <option value="">All Locations</option>
+        ${(dropdowns.locations || []).map(l => `<option value="${l}" ${dashboardFilters.location === l ? 'selected' : ''}>${l}</option>`).join('')}
+      </select>
+      <select onchange="applyDashboardFilter('gender', this.value)">
+        <option value="">All Genders</option>
+        <option value="Male" ${dashboardFilters.gender === 'Male' ? 'selected' : ''}>Male</option>
+        <option value="Female" ${dashboardFilters.gender === 'Female' ? 'selected' : ''}>Female</option>
+      </select>
+      ${Object.values(dashboardFilters).some(v => v) ? `<button class="btn btn-sm btn-outline" onclick="clearDashboardFilters()"><i class="fas fa-times"></i> Clear</button>` : ''}
+    </div>
+    ` : ''}
+    
     <div class="stats-grid">
-      ${role === 'Admin' || role === 'HRBP' ? `
+      ${isAdminHr ? `
         <div class="stat-card">
           <div class="stat-icon blue"><i class="fas fa-users"></i></div>
           <div class="stat-info"><h4>${stats.totalEmployees || 0}</h4><p>Total Employees</p></div>
@@ -374,12 +437,28 @@ async function loadDashboard() {
           <div class="stat-info"><h4>${stats.activeEmployees || 0}</h4><p>Active Employees</p></div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon orange"><i class="fas fa-calendar-times"></i></div>
-          <div class="stat-info"><h4>${stats.pendingLeave || 0}</h4><p>Pending Leave</p></div>
+          <div class="stat-icon blue"><i class="fas fa-mars"></i></div>
+          <div class="stat-info"><h4>${stats.maleCount || 0}</h4><p>Male Employees</p></div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon red"><i class="fas fa-user-clock"></i></div>
-          <div class="stat-info"><h4>${stats.newHires || 0}</h4><p>New Hires This Month</p></div>
+          <div class="stat-icon orange"><i class="fas fa-venus"></i></div>
+          <div class="stat-info"><h4>${stats.femaleCount || 0}</h4><p>Female Employees</p></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon green"><i class="fas fa-user-plus"></i></div>
+          <div class="stat-info"><h4>${stats.newHiresYTD || 0}</h4><p>New Hires (YTD)</p></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon red"><i class="fas fa-user-slash"></i></div>
+          <div class="stat-info"><h4>${stats.terminatedThisMonth || 0}</h4><p>Terminations (Month)</p></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon orange"><i class="fas fa-user-minus"></i></div>
+          <div class="stat-info"><h4>${stats.terminatedYTD || 0}</h4><p>Terminations (YTD)</p></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon orange"><i class="fas fa-calendar-times"></i></div>
+          <div class="stat-info"><h4>${stats.pendingLeave || 0}</h4><p>Pending Leave</p></div>
         </div>
       ` : `
         <div class="stat-card">
@@ -431,6 +510,16 @@ async function loadDashboard() {
       </div>
     </div>
   `;
+}
+
+function applyDashboardFilter(key, value) {
+  dashboardFilters[key] = value || '';
+  if (dashboardData) renderDashboard(dashboardData);
+}
+
+function clearDashboardFilters() {
+  dashboardFilters = {};
+  if (dashboardData) renderDashboard(dashboardData);
 }
 
 // ===== Employees =====
@@ -1307,26 +1396,83 @@ async function loadChat() {
   `;
 }
 
+let chatPollTimer = null;
+
 async function openChat(email, name) {
   currentChat = { email, name };
   
+  // Show chat header with recipient name
+  const chatArea = document.getElementById('chatMessages');
   document.getElementById('chatInputArea').style.display = 'flex';
   
+  // Stop previous poll
+  if (chatPollTimer) clearInterval(chatPollTimer);
+  
+  await loadChatMessages(email);
+  
+  // Auto-refresh every 5 seconds
+  chatPollTimer = setInterval(() => {
+    if (currentChat && currentChat.email === email) loadChatMessages(email);
+  }, 5000);
+}
+
+async function loadChatMessages(email) {
   const data = await call('getChatThreadByEmail', STATE.token, email);
   const messages = data.messages || [];
+  const myId = String(STATE.user?.employeeId || STATE.me?.EmployeeID);
   
   const chatArea = document.getElementById('chatMessages');
-  chatArea.innerHTML = messages.map(m => `
-    <div class="message ${m.mine || String(m.FromEmployeeID) === String(STATE.user?.employeeId) ? 'sent' : 'received'}">
-      <div class="message-bubble">
-        <div>${m.Message || ''}</div>
-        ${m.FileName ? `<div style="margin-top: 8px;"><a href="#" onclick="return false;" style="color: inherit;"><i class="fas fa-paperclip"></i> ${m.FileName}</a></div>` : ''}
-        <div style="font-size: 11px; opacity: 0.7; margin-top: 4px;">${m.CreatedAt || ''}</div>
-      </div>
-    </div>
-  `).join('');
+  const existingHeader = document.querySelector('.chat-header');
+  const wasAtBottom = chatArea.scrollHeight - chatArea.scrollTop <= chatArea.clientHeight + 50;
   
-  chatArea.scrollTop = chatArea.scrollHeight;
+  // Build messages HTML with edit/delete actions
+  const msgsHtml = messages.map(m => {
+    const isMine = m.mine || String(m.FromEmployeeID) === myId;
+    const msgId = m.MessageID || '';
+    const editedTag = m.EditedAt ? ' <em style="font-size:10px;opacity:0.6;">(edited)</em>' : '';
+    return `
+      <div class="message ${isMine ? 'sent' : 'received'}">
+        <div class="message-bubble">
+          <div>${(m.Message || '').replace(/</g,'&lt;')}${editedTag}</div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
+            <div style="font-size: 11px; opacity: 0.7;">${m.CreatedAt || ''}</div>
+            ${isMine ? `
+              <div class="message-actions">
+                <button onclick="editChatMsg('${msgId}', '${(m.Message || '').replace(/'/g, '\\'')}")" title="Edit"><i class="fas fa-pen" style="font-size:11px;"></i></button>
+                <button onclick="deleteChatMsg('${msgId}')" title="Delete"><i class="fas fa-trash" style="font-size:11px;"></i></button>
+              </div>
+            ` : ''}
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+  
+  // Chat header
+  const headerHtml = `<div class="chat-header"><div class="chat-header-info"><strong>${currentChat.name || 'Chat'}</strong></div></div>`;
+  
+  chatArea.innerHTML = headerHtml + msgsHtml;
+  
+  if (wasAtBottom) chatArea.scrollTop = chatArea.scrollHeight;
+}
+
+async function editChatMsg(messageId, currentMsg) {
+  const newMsg = prompt('Edit message:', currentMsg);
+  if (newMsg === null || newMsg.trim() === '') return;
+  try {
+    const data = await call('editChatMessage', STATE.token, messageId, newMsg);
+    if (!data.ok) throw new Error(data.error);
+    if (currentChat) loadChatMessages(currentChat.email);
+  } catch (err) { showToast(err.message, 'error'); }
+}
+
+async function deleteChatMsg(messageId) {
+  if (!confirm('Delete this message?')) return;
+  try {
+    const data = await call('deleteChatMessage', STATE.token, messageId);
+    if (!data.ok) throw new Error(data.error);
+    if (currentChat) loadChatMessages(currentChat.email);
+  } catch (err) { showToast(err.message, 'error'); }
 }
 
 async function sendChatMsg() {
@@ -1394,10 +1540,31 @@ async function markAllRead() {
 
 // ===== Leave =====
 async function loadLeave() {
-  const data = await call('getMyLeave', STATE.token);
+  const [data, empData] = await Promise.all([
+    call('getMyLeave', STATE.token),
+    call('listEmployees', STATE.token)
+  ]);
   const content = document.getElementById('contentArea');
   
   const leaves = data.leaves || [];
+  const employees = empData.employees || [];
+  const empMap = {};
+  employees.forEach(e => { empMap[e.EmployeeID] = e; });
+  
+  const myId = STATE.me?.EmployeeID || STATE.user?.employeeId;
+  const role = STATE.user?.role;
+  const isManager = ['Admin', 'HRBP', 'Manager'].includes(role);
+  
+  // Separate my leave and pending approvals
+  const myLeave = leaves.filter(l => String(l.EmployeeID) === String(myId));
+  const pendingApproval = isManager ? leaves.filter(l =>
+    String(l.ManagerID) === String(myId) &&
+    String(l.EmployeeID) !== String(myId) &&
+    l.Status === 'Submitted'
+  ) : [];
+  const allTeamLeave = isManager ? leaves.filter(l =>
+    String(l.ManagerID) === String(myId) && String(l.EmployeeID) !== String(myId)
+  ) : [];
   
   content.innerHTML = `
     <div class="card mb-3">
@@ -1435,9 +1602,41 @@ async function loadLeave() {
       </div>
     </div>
     
-    <div class="card">
+    ${pendingApproval.length > 0 ? `
+    <div class="card mb-3">
+      <div class="card-header" style="background: #fef3c7;">
+        <h3><i class="fas fa-clock" style="color: var(--warning);"></i> Pending Approvals (${pendingApproval.length})</h3>
+      </div>
+      <div class="card-body">
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr><th>Employee</th><th>Type</th><th>Start</th><th>End</th><th>Actions</th></tr>
+            </thead>
+            <tbody>
+              ${pendingApproval.map(l => {
+                const emp = empMap[l.EmployeeID] || {};
+                return `<tr>
+                  <td>${emp.FirstName || ''} ${emp.LastName || ''}</td>
+                  <td>${l.LeaveType || ''}</td>
+                  <td>${l.StartDate || ''}</td>
+                  <td>${l.EndDate || ''}</td>
+                  <td class="leave-actions">
+                    <button class="btn btn-sm btn-success" onclick="approveLeaveAction('${l.LeaveID}', 'approve')"><i class="fas fa-check"></i> Approve</button>
+                    <button class="btn btn-sm btn-danger" onclick="approveLeaveAction('${l.LeaveID}', 'reject')"><i class="fas fa-times"></i> Reject</button>
+                  </td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    ` : ''}
+    
+    <div class="card mb-3">
       <div class="card-header">
-        <h3>My Leave Requests</h3>
+        <h3>${isManager ? 'My Leave Requests' : 'My Leave Requests'}</h3>
       </div>
       <div class="card-body">
         <div class="table-container">
@@ -1452,19 +1651,14 @@ async function loadLeave() {
               </tr>
             </thead>
             <tbody>
-              ${leaves.map(l => `
+              ${myLeave.map(l => `
                 <tr>
                   <td>${l.LeaveType}</td>
                   <td>${l.StartDate}</td>
                   <td>${l.EndDate}</td>
                   <td><span class="pill ${l.Status === 'Approved' ? 'pill-success' : l.Status === 'Rejected' ? 'pill-danger' : 'pill-warning'}">${l.Status}</span></td>
                   <td>
-                    ${l.Status === 'Submitted' && String(l.ManagerID) === String(STATE.me?.EmployeeID) && l.EmployeeID !== STATE.me?.EmployeeID ? `
-                      <button class="btn btn-sm btn-primary" onclick="approveLeaveAction('${l.LeaveID}', 'approve')"><i class="fas fa-check"></i> Approve</button>
-                      <button class="btn btn-sm btn-danger" onclick="approveLeaveAction('${l.LeaveID}', 'reject')"><i class="fas fa-times"></i> Reject</button>
-                    ` : l.Status === 'Submitted' && l.EmployeeID === STATE.me?.EmployeeID ? `
-                      <button class="btn btn-sm btn-danger" onclick="cancelLeave('${l.LeaveID}')">Cancel</button>
-                    ` : ''}
+                    ${l.Status === 'Submitted' ? `<button class="btn btn-sm btn-danger" onclick="cancelLeave('${l.LeaveID}')">Cancel</button>` : ''}
                   </td>
                 </tr>
               `).join('')}
@@ -1473,6 +1667,35 @@ async function loadLeave() {
         </div>
       </div>
     </div>
+    
+    ${allTeamLeave.length > 0 ? `
+    <div class="card">
+      <div class="card-header">
+        <h3>Team Leave History (${allTeamLeave.length})</h3>
+      </div>
+      <div class="card-body">
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr><th>Employee</th><th>Type</th><th>Start</th><th>End</th><th>Status</th></tr>
+            </thead>
+            <tbody>
+              ${allTeamLeave.map(l => {
+                const emp = empMap[l.EmployeeID] || {};
+                return `<tr>
+                  <td>${emp.FirstName || ''} ${emp.LastName || ''}</td>
+                  <td>${l.LeaveType || ''}</td>
+                  <td>${l.StartDate || ''}</td>
+                  <td>${l.EndDate || ''}</td>
+                  <td><span class="pill ${l.Status === 'Approved' ? 'pill-success' : l.Status === 'Rejected' ? 'pill-danger' : 'pill-warning'}">${l.Status}</span></td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    ` : ''}
   `;
   
   document.getElementById('leaveForm').addEventListener('submit', async (e) => {
@@ -2342,6 +2565,71 @@ function showToast(message, type = 'success') {
   setTimeout(() => toast.remove(), 4000);
 }
 
+// ===== Notifications Dropdown =====
+let notifDropdownOpen = false;
+async function showNotifications() {
+  // Close existing dropdown if open
+  const existing = document.querySelector('.notifications-dropdown');
+  if (existing) { existing.remove(); notifDropdownOpen = false; return; }
+  
+  notifDropdownOpen = true;
+  const data = await call('listNotifications', STATE.token);
+  const notifications = data.notifications || [];
+  
+  const dropdown = document.createElement('div');
+  dropdown.className = 'notifications-dropdown';
+  dropdown.innerHTML = `
+    <div class="notif-header">
+      <strong>Notifications (${notifications.length})</strong>
+      <button class="btn btn-sm btn-outline" onclick="markAllNotificationsRead(); this.closest('.notifications-dropdown').remove();">
+        Mark all read
+      </button>
+    </div>
+    ${notifications.length === 0 ? '<p style="padding: 24px; text-align: center; color: var(--gray-500);">No notifications</p>' : ''}
+    ${notifications.slice(0, 20).map(n => `
+      <div class="notif-item ${n.Status === 'Unread' ? 'unread' : ''}" onclick="handleNotifClick('${n.ReferenceType || ''}', '${n.ReferenceID || ''}', '${n.NotificationID || ''}')">
+        <div style="display: flex; justify-content: space-between;">
+          <strong style="font-size: 13px;">${n.Title || ''}</strong>
+          <small style="color: var(--gray-500); white-space: nowrap; margin-left: 8px;">${n.CreatedAt ? new Date(n.CreatedAt).toLocaleDateString() : ''}</small>
+        </div>
+        <p style="font-size: 12px; color: var(--gray-600); margin-top: 2px;">${n.Message || ''}</p>
+      </div>
+    `).join('')}
+  `;
+  
+  // Position relative to the bell icon
+  const bell = document.querySelector('.notifications');
+  bell.style.position = 'relative';
+  bell.appendChild(dropdown);
+  
+  // Close on click outside
+  setTimeout(() => {
+    document.addEventListener('click', function closeNotif(e) {
+      if (!dropdown.contains(e.target) && !bell.contains(e.target)) {
+        dropdown.remove();
+        notifDropdownOpen = false;
+        document.removeEventListener('click', closeNotif);
+      }
+    });
+  }, 10);
+  
+  // Update badge
+  const unread = notifications.filter(n => n.Status === 'Unread').length;
+  document.getElementById('notifCount').textContent = unread;
+}
+
+function handleNotifClick(refType, refId, notifId) {
+  // Mark as read and navigate
+  if (refType === 'Leave') navigateTo('leave');
+  else if (refType === 'Chat') navigateTo('chat');
+  else if (refType === 'Course') navigateTo('learning');
+  else navigateTo('notifications');
+  // Close dropdown
+  const dd = document.querySelector('.notifications-dropdown');
+  if (dd) dd.remove();
+  notifDropdownOpen = false;
+}
+
 // ===== Toggle Password =====
 function togglePassword() {
   const input = document.getElementById('password');
@@ -2632,19 +2920,24 @@ async function loadUserManagement() {
               </tr>
             </thead>
             <tbody>
-              ${users.map(u => `
-                <tr>
+              ${users.map(u => {
+                const roles = ['Admin','HRBP','Manager','Learning Manager','Talent Manager','Recruitment Manager','Performance Manager','Employee'];
+                return `<tr>
                   <td>${u.Email}</td>
                   <td>${u.EmployeeID || '-'}</td>
-                  <td><span class="pill pill-info">${u.Role}</span></td>
+                  <td>
+                    <select style="padding: 4px 8px; border: 1px solid var(--gray-300); border-radius: 4px; font-size: 13px;" onchange="changeUserRole('${u.Email}', this.value)">
+                      ${roles.map(r => `<option value="${r}" ${r === u.Role ? 'selected' : ''}>${r}</option>`).join('')}
+                    </select>
+                  </td>
                   <td><span class="pill ${(u.Status || 'Active') === 'Active' ? 'pill-success' : 'pill-danger'}">${u.Status || 'Active'}</span></td>
                   <td class="action-btns">
                     <button class="btn btn-sm btn-outline" onclick="showResetUserPassword('${u.Email}')">
                       <i class="fas fa-key"></i> Reset Password
                     </button>
                   </td>
-                </tr>
-              `).join('')}
+                </tr>`;
+              }).join('')}
             </tbody>
           </table>
         </div>
@@ -2753,6 +3046,17 @@ async function showResetUserPassword(email) {
       showToast(err.message, 'error');
     }
   });
+}
+
+async function changeUserRole(email, newRole) {
+  try {
+    const data = await call('adminUpdateUserRole', STATE.token, email, newRole);
+    if (!data.ok) throw new Error(data.error);
+    showToast(`Role updated to ${newRole}`, 'success');
+  } catch (err) {
+    showToast(err.message, 'error');
+    loadUserManagement();
+  }
 }
 
 // ===== Init =====

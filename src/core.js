@@ -170,13 +170,12 @@ async function validateEmployeePayload(p, existingId) {
 }
 
 function nextEmployeeId(rows) {
-  const y = formatDate(new Date(), APP.TZ, 'yyyy');
-  let max = 0;
+  let max = 100000;
   rows.forEach(r => {
-    const m = String(r.EmployeeID || '').match(/RHS-(\d{4})-(\d+)/);
-    if (m && m[1] === y) max = Math.max(max, Number(m[2]));
+    const n = Number(r.EmployeeID);
+    if (!isNaN(n) && n > max) max = n;
   });
-  return 'RHS-' + y + '-' + String(max + 1).padStart(5, '0');
+  return String(max + 1);
 }
 
 /* ================================================================
@@ -316,7 +315,27 @@ async function resetUserPasswordByAdmin(token, email, tempPassword) { return adm
 async function listUsers(token) {
   await requireRole(token, ['Admin']);
   const users = await readRowsAsync(SHEETS.USERS);
-  return { ok: true, users: users.map(u => ({ EmployeeID: u.EmployeeID, Email: u.Email, Role: u.Role, Status: u.Status })) };
+  return { ok: true, users: users.map(u => ({ UserID: u.UserID, EmployeeID: u.EmployeeID, Email: u.Email, Role: u.Role, Status: u.Status })) };
+}
+
+async function adminUpdateUserRole(token, email, newRole) {
+  const me = await requireRole(token, ['Admin']);
+  if (!APP.ROLES.includes(newRole)) throw new Error('Invalid role');
+  const users = await readRowsAsync(SHEETS.USERS);
+  const u = users.find(x => normalizeEmail(x.Email) === normalizeEmail(email));
+  if (!u) throw new Error('User not found');
+  if (normalizeEmail(u.Email) === normalizeEmail(me.email)) throw new Error('Cannot change your own role');
+  await updateByIdAsync(SHEETS.USERS, 'UserID', u.UserID, {
+    Role: newRole, UpdatedAt: new Date().toISOString()
+  });
+  // Also update the employee's Role field
+  if (u.EmployeeID) {
+    try {
+      await updateByIdAsync(SHEETS.EMP, 'EmployeeID', u.EmployeeID, { Role: newRole, UpdatedAt: new Date().toISOString() });
+    } catch (e) { /* employee may not exist */ }
+  }
+  await auditAsync('ROLE_UPDATED', me.email, { email, oldRole: u.Role, newRole });
+  return { ok: true };
 }
 
 /* ================================================================
@@ -502,6 +521,34 @@ async function getDashboardData(token) {
   const chatCount = allChat.filter(m => String(m.ToEmployeeID) === String(me.employeeId) && m.Status !== 'Deleted' && !m.ReadAt).length;
   const meEmp = empRows.find(e => String(e.EmployeeID) === String(me.employeeId)) || {};
 
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth();
+  const yearStart = new Date(currentYear, 0, 1);
+  const monthStart = new Date(currentYear, currentMonth, 1);
+
+  // Terminations
+  const terminated = empRows.filter(e => e.TerminationDate || String(e.EmploymentStatus) === 'Terminated');
+  const terminatedThisMonth = terminated.filter(e => {
+    const d = new Date(e.TerminationDate || e.UpdatedAt || '');
+    return d >= monthStart && d <= now;
+  }).length;
+  const terminatedYTD = terminated.filter(e => {
+    const d = new Date(e.TerminationDate || e.UpdatedAt || '');
+    return d >= yearStart && d <= now;
+  }).length;
+
+  // New hires YTD
+  const newHiresYTD = empRows.filter(e => {
+    if (!e.HireDate) return false;
+    const d = new Date(e.HireDate);
+    return d >= yearStart && d <= now;
+  }).length;
+
+  // Gender breakdown
+  const maleCount = empRows.filter(e => String(e.Gender).toLowerCase() === 'male').length;
+  const femaleCount = empRows.filter(e => String(e.Gender).toLowerCase() === 'female').length;
+
   return {
     ok: true,
     me, myPhoto: meEmp.PhotoUrl || '', permissions: getPermissions(me.role),
@@ -514,7 +561,12 @@ async function getDashboardData(token) {
       totalEmployees: empRows.length,
       activeEmployees: empRows.filter(e => String(e.EmploymentStatus) === 'Active').length,
       pendingLeave: allLeave.filter(x => String(x.Status) === 'Submitted').length,
-      newHires: 0,
+      newHires: newHiresYTD,
+      newHiresYTD,
+      terminatedThisMonth,
+      terminatedYTD,
+      maleCount,
+      femaleCount,
       leaveBalance: 20,
       myGoals: 0,
       unreadNotifications: unread
@@ -540,6 +592,28 @@ async function resumeDashboard(token) {
   const chatCount = allChat.filter(m => String(m.ToEmployeeID) === String(s.employeeId) && m.Status !== 'Deleted' && !m.ReadAt).length;
   const meEmp = empRows.find(e => String(e.EmployeeID) === String(s.employeeId)) || {};
 
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth();
+  const yearStart = new Date(currentYear, 0, 1);
+  const monthStart = new Date(currentYear, currentMonth, 1);
+
+  const terminated = empRows.filter(e => e.TerminationDate || String(e.EmploymentStatus) === 'Terminated');
+  const terminatedThisMonth = terminated.filter(e => {
+    const d = new Date(e.TerminationDate || e.UpdatedAt || '');
+    return d >= monthStart && d <= now;
+  }).length;
+  const terminatedYTD = terminated.filter(e => {
+    const d = new Date(e.TerminationDate || e.UpdatedAt || '');
+    return d >= yearStart && d <= now;
+  }).length;
+  const newHiresYTD = empRows.filter(e => {
+    if (!e.HireDate) return false;
+    return new Date(e.HireDate) >= yearStart;
+  }).length;
+  const maleCount = empRows.filter(e => String(e.Gender).toLowerCase() === 'male').length;
+  const femaleCount = empRows.filter(e => String(e.Gender).toLowerCase() === 'female').length;
+
   return {
     ok: true, valid: true, me: s, user: { email: s.email, role: s.role },
     myPhoto: meEmp.PhotoUrl || '', permissions: getPermissions(s.role),
@@ -551,6 +625,12 @@ async function resumeDashboard(token) {
       totalEmployees: empRows.length,
       activeEmployees: empRows.filter(e => String(e.EmploymentStatus) === 'Active').length,
       pendingLeave: allLeave.filter(x => String(x.Status) === 'Submitted').length,
+      newHires: newHiresYTD,
+      newHiresYTD,
+      terminatedThisMonth,
+      terminatedYTD,
+      maleCount,
+      femaleCount,
       leaveBalance: 20,
       myGoals: 0,
       unreadNotifications: unread
@@ -629,6 +709,28 @@ async function markAllNotificationsRead(token) {
 async function applyLeave(token, p) {
   const me = await requireLogin(token);
   const emp = await findByIdAsync(SHEETS.EMP, 'EmployeeID', me.employeeId) || {};
+  
+  // Check for leave conflicts (overlapping dates)
+  const startDate = p.StartDate || p.startDate;
+  const endDate = p.EndDate || p.endDate;
+  if (startDate && endDate) {
+    const allLeaves = await readRowsAsync(SHEETS.LEAVE);
+    const myActiveLeaves = allLeaves.filter(l =>
+      String(l.EmployeeID) === String(me.employeeId) &&
+      l.Status !== 'Rejected' && l.Status !== 'Cancelled' &&
+      l.StartDate && l.EndDate
+    );
+    for (const l of myActiveLeaves) {
+      const existingStart = new Date(l.StartDate);
+      const existingEnd = new Date(l.EndDate);
+      const newStart = new Date(startDate);
+      const newEnd = new Date(endDate);
+      if (newStart <= existingEnd && newEnd >= existingStart) {
+        throw new Error(`Leave overlaps with existing ${l.LeaveType || 'leave'} (${l.StartDate} to ${l.EndDate}, status: ${l.Status})`);
+      }
+    }
+  }
+  
   const id = uuid();
   await appendRowAsync(SHEETS.LEAVE, [
     id, me.employeeId, p.LeaveType || p.leaveType, p.StartDate || p.startDate, p.EndDate || p.endDate,
@@ -1025,7 +1127,7 @@ module.exports = {
   createEmployee, createEmployeeRecord, updateEmployee, modifyEmployee, terminateEmployee, terminateEmployeeRecord,
   getEmployeeById, getEmployeeDirectory, listEmployees, listAllEmployeesForChat,
   // User admin
-  adminCreateUser, adminResetPassword, addUserByAdmin, resetUserPasswordByAdmin, listUsers,
+  adminCreateUser, adminResetPassword, adminUpdateUserRole, addUserByAdmin, resetUserPasswordByAdmin, listUsers,
   // Profile
   getMyProfile, getMyPhotoUrl, updateMyProfile,
   // Dashboard

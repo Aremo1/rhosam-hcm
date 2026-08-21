@@ -107,8 +107,8 @@ app.post('/api/upload/profile', upload.single('profilePic'), async (req, res) =>
     const base64 = req.file.buffer.toString('base64');
     const dataUrl = `data:${req.file.mimetype};base64,${base64}`;
 
-    const { _updateByIdAsync, _readRowsAsync, SHEETS } = require('./globals');
-    await _updateByIdAsync(SHEETS.EMP, 'EmployeeID', session.employeeId, { PhotoUrl: dataUrl, UpdatedAt: new Date().toISOString() });
+    const { updateByIdAsync, SHEETS } = require('./globals');
+    await updateByIdAsync(SHEETS.EMP, 'EmployeeID', session.employeeId, { PhotoUrl: dataUrl, UpdatedAt: new Date().toISOString() });
 
     res.json({ ok: true, photoUrl: dataUrl });
   } catch (err) {
@@ -132,8 +132,8 @@ app.post('/api/upload/profile/:employeeId', upload.single('profilePic'), async (
     const base64 = req.file.buffer.toString('base64');
     const dataUrl = `data:${req.file.mimetype};base64,${base64}`;
 
-    const { _updateByIdAsync, SHEETS } = require('./globals');
-    await _updateByIdAsync(SHEETS.EMP, 'EmployeeID', employeeId, { PhotoUrl: dataUrl, UpdatedAt: new Date().toISOString() });
+    const { updateByIdAsync, SHEETS } = require('./globals');
+    await updateByIdAsync(SHEETS.EMP, 'EmployeeID', employeeId, { PhotoUrl: dataUrl, UpdatedAt: new Date().toISOString() });
 
     res.json({ ok: true, photoUrl: dataUrl });
   } catch (err) {

@@ -224,7 +224,7 @@ async function migrate() {
     const schema = SCHEMA.Users;
     const params = schema.map(col => {
       if (col === 'UserID') return uuid();
-      if (col === 'EmployeeID') return 'RHS-ADMIN-00001';
+      if (col === 'EmployeeID') return '100001';
       if (col === 'Email') return adminEmail.toLowerCase();
       if (col === 'PasswordHash') return passwordHash;
       if (col === 'Salt') return salt;
