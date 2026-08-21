@@ -136,7 +136,16 @@ const SHEETS = {
   DOCS: 'Documents',
   ORG: 'Org_Chart',
   APPRAISAL_CYCLES: 'Appraisal_Cycles',
-  APPRAISAL_FEEDBACK: 'Appraisal_Feedback'
+  APPRAISAL_FEEDBACK: 'Appraisal_Feedback',
+  // Extra Google Sheets tabs
+  EXPORT_LOG: 'ExportLog',
+  BULK_STAGING: 'BulkUploadStaging',
+  BULK_LOG: 'BulkUploadLog',
+  HDL_EXPORT: 'HDLExportLog',
+  SUCCESSORS: 'Successors',
+  TALENT_MATRIX: 'TalentMatrix',
+  MCQ_IMPORT: 'MCQ_Import',
+  PAYROLL_AUDIT: 'Payroll_Audit'
 };
 
 /** Canonical column order per table */
@@ -182,7 +191,16 @@ const SCHEMA = {
   Appraisal_Cycles: ['AppraisalCycleID', 'Title', 'EmployeeID', 'ManagerID', 'ReviewPeriod', 'Status', 'StartDate', 'EndDate', 'CreatedAt', 'UpdatedAt'],
   Appraisal_Feedback: ['FeedbackID', 'AppraisalCycleID', 'EmployeeID', 'ReviewerID', 'ReviewerRole', 'Rating', 'Comments', 'Strengths', 'DevelopmentAreas', 'CreatedAt'],
   Documents: ['DocumentID', 'EmployeeID', 'Type', 'FileName', 'DriveFileId', 'Url', 'CreatedAt'],
-  Org_Chart: ['EmployeeID', 'ManagerID', 'PositionTitle', 'Department', 'Active']
+  Org_Chart: ['EmployeeID', 'ManagerID', 'PositionTitle', 'Department', 'Active'],
+  // Extra Google Sheets tabs
+  ExportLog: ['LogID', 'ExportType', 'EmployeeID', 'RequestedBy', 'FileUrl', 'RecordCount', 'Status', 'CreatedAt'],
+  BulkUploadStaging: ['StagingID', 'UploadType', 'FileName', 'UploadedBy', 'Status', 'TotalRows', 'ProcessedRows', 'ErrorRows', 'CreatedAt', 'CompletedAt'],
+  BulkUploadLog: ['LogID', 'UploadType', 'FileName', 'UploadedBy', 'SuccessCount', 'FailedCount', 'Errors', 'CreatedAt'],
+  HDLExportLog: ['LogID', 'ExportType', 'Period', 'GeneratedBy', 'FileUrl', 'RecordCount', 'CreatedAt'],
+  Successors: ['SuccessorID', 'EmployeeID', 'SuccessorEmployeeID', 'Readiness', 'Potential', 'Risk', 'Notes', 'CreatedAt', 'UpdatedAt'],
+  TalentMatrix: ['MatrixID', 'EmployeeID', 'Period', 'Performance', 'Potential', 'Quadrant', 'Notes', 'ReviewedBy', 'CreatedAt', 'UpdatedAt'],
+  MCQ_Import: ['ImportID', 'FileName', 'Bank', 'UploadedBy', 'TotalQuestions', 'ImportedCount', 'Status', 'CreatedAt'],
+  Payroll_Audit: ['AuditID', 'PayrollRunID', 'EmployeeID', 'Period', 'Action', 'OldValue', 'NewValue', 'Actor', 'CreatedAt']
 };
 
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
