@@ -505,6 +505,18 @@ async function showCreateEmployee() {
       </div>
       
       <div class="form-group">
+        <label>Marital Status</label>
+        <select name="MaritalStatus">
+          <option value="">Select</option>
+          <option value="Single">Single</option>
+          <option value="Married">Married</option>
+          <option value="Divorced">Divorced</option>
+          <option value="Separated">Separated</option>
+          <option value="Widowed">Widowed</option>
+        </select>
+      </div>
+      
+      <div class="form-group">
         <label>National ID</label>
         <input type="text" name="NationalID" required pattern="[0-9]{1,11}" maxlength="11" title="National ID must be 1-11 digits only" oninput="validateNationalIDInput(this)">
       </div>
@@ -592,17 +604,36 @@ async function showCreateEmployee() {
       </div>
       
       <div class="form-group">
+        <label>Job Title</label>
+        <input type="text" name="JobTitle" placeholder="e.g. Senior Software Engineer">
+      </div>
+      
+      <div class="form-group">
+        <label>Country</label>
+        <select name="Country">
+          <option value="Nigeria" selected>Nigeria</option>
+          <option value="Ghana">Ghana</option>
+          <option value="Kenya">Kenya</option>
+          <option value="South Africa">South Africa</option>
+          <option value="United Kingdom">United Kingdom</option>
+          <option value="United States">United States</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+      
+      <div class="form-group">
         <label>Hire Date</label>
         <input type="date" name="HireDate" required>
       </div>
       
       <div class="form-group">
-        <label>Employment Type</label>
-        <select name="EmploymentType">
-          <option value="Full-time">Full-time</option>
-          <option value="Part-time">Part-time</option>
-          <option value="Contract">Contract</option>
-          <option value="Intern">Intern</option>
+        <label>Employment Status</label>
+        <select name="EmploymentStatus">
+          <option value="Active" selected>Active</option>
+          <option value="Probation">Probation</option>
+          <option value="On Leave">On Leave</option>
+          <option value="Suspended">Suspended</option>
+          <option value="Terminated">Terminated</option>
         </select>
       </div>
       
@@ -693,6 +724,13 @@ async function editEmployee(id) {
         <input type="tel" name="Phone" value="${emp.Phone || ''}" pattern="[0-9]{7,15}" maxlength="15" title="Phone must be 7-15 digits only" oninput="validatePhoneInput(this)">
       </div>
       <div class="form-group">
+        <label>Marital Status</label>
+        <select name="MaritalStatus">
+          <option value="">Select</option>
+          ${['Single','Married','Divorced','Separated','Widowed'].map(m => `<option value="${m}" ${m === emp.MaritalStatus ? 'selected' : ''}>${m}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
         <label>Position</label>
         <select name="Position">
           <option value="">Select Position</option>
@@ -732,11 +770,19 @@ async function editEmployee(id) {
         <input type="text" name="ManagerID" value="${emp.ManagerID || ''}">
       </div>
       <div class="form-group">
+        <label>Job Title</label>
+        <input type="text" name="JobTitle" value="${emp.JobTitle || ''}" placeholder="e.g. Senior Software Engineer">
+      </div>
+      <div class="form-group">
+        <label>Country</label>
+        <select name="Country">
+          ${['Nigeria','Ghana','Kenya','South Africa','United Kingdom','United States','Other'].map(c => `<option value="${c}" ${c === emp.Country ? 'selected' : ''}>${c}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
         <label>Status</label>
         <select name="EmploymentStatus">
-          <option value="Active" ${(emp.EmploymentStatus || emp.Status) === 'Active' ? 'selected' : ''}>Active</option>
-          <option value="Terminated" ${(emp.EmploymentStatus || emp.Status) === 'Terminated' ? 'selected' : ''}>Terminated</option>
-          <option value="On Leave" ${(emp.EmploymentStatus || emp.Status) === 'On Leave' ? 'selected' : ''}>On Leave</option>
+          ${['Active','Probation','On Leave','Suspended','Terminated'].map(s => `<option value="${s}" ${(emp.EmploymentStatus || emp.Status) === s ? 'selected' : ''}>${s}</option>`).join('')}
         </select>
       </div>
       

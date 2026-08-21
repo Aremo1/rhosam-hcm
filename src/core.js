@@ -199,7 +199,7 @@ async function createEmployee(token, p) {
       Department: p.Department || '', Position: p.Position || '', Location: p.Location || '',
       JobLevel: p.JobLevel || '', Grade: p.Grade || '', JobTitle: p.JobTitle || p.Position || '',
       ManagerID: p.ManagerID || '', Role: p.Role || 'Employee',
-      EmploymentStatus: 'Active', HireDate: hireDate, TerminationDate: '',
+      EmploymentStatus: p.EmploymentStatus || 'Active', HireDate: hireDate, TerminationDate: '',
       PhotoFileId: '', PhotoUrl: '', CreatedAt: new Date().toISOString(), UpdatedAt: new Date().toISOString()
     };
     await appendRowAsync(SHEETS.EMP, headers.map(h => e[h] !== undefined ? e[h] : ''));
